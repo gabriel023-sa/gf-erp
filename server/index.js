@@ -23,6 +23,7 @@ const publicDir = path.resolve(__dirname, '..');
 const localDbPath = path.resolve(publicDir, 'data', 'gf-erp.local.json');
 const migrationsDir = path.resolve(__dirname, 'migrations');
 const usePostgres = Boolean(process.env.DATABASE_URL);
+const staticMaxAge = process.env.NODE_ENV === 'production' ? '1h' : 0;
 
 const pool = usePostgres
   ? new Pool({
@@ -114,13 +115,28 @@ app.post('/api/admin/users', requireAuth, requireAdmin, asyncHandler(async (requ
   response.status(201).json({ user });
 }));
 
+app.get('/', serveIndex);
+app.get('/index.html', serveIndex);
+
 app.use(express.static(publicDir, {
   extensions: ['html'],
-  maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0
+  index: false,
+  maxAge: staticMaxAge,
+  setHeaders(response, filePath) {
+    if (filePath.endsWith('manifest.webmanifest')) {
+      response.type('application/manifest+json');
+    }
+    if (filePath.endsWith('service-worker.js')) {
+      response.setHeader('Cache-Control', 'no-cache');
+    }
+  }
 }));
 
 app.get('*', (request, response) => {
-  response.sendFile(path.join(publicDir, 'index.html'));
+  if (isStaticAssetRequest(request.path)) {
+    return response.status(404).json({ error: 'Arquivo estatico nao encontrado.' });
+  }
+  return serveIndex(request, response);
 });
 
 app.use((error, request, response, next) => {
@@ -435,6 +451,14 @@ function asyncHandler(handler) {
   return (request, response, next) => {
     Promise.resolve(handler(request, response, next)).catch(next);
   };
+}
+
+function serveIndex(request, response) {
+  response.sendFile(path.join(publicDir, 'index.html'));
+}
+
+function isStaticAssetRequest(requestPath) {
+  return path.extname(requestPath) !== '';
 }
 
 function makeId(prefix) {
