@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="GF ERP">
+  <rect width="512" height="512" rx="96" fill="#111827"/>
+  <rect x="54" y="54" width="404" height="404" rx="76" fill="#0d9488"/>
+  <path d="M136 360h240" stroke="#f5b84b" stroke-width="18" stroke-linecap="round"/>
+  <text x="256" y="287" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="156" font-weight="800" text-anchor="middle">GF</text>
+  <text x="256" y="352" fill="#dff4ee" font-family="Segoe UI, Arial, sans-serif" font-size="58" font-weight="700" text-anchor="middle">ERP</text>
+</svg>

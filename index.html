@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GF ERP - GF Impressao 3D</title>
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GF ERP">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-required">
+  <section id="loginScreen" class="login-screen" aria-labelledby="login-title">
+    <div class="login-card">
+      <div class="brand login-brand">
+        <div class="brand-mark">GF</div>
+        <div>
+          <strong>GF ERP</strong>
+          <span>GF Impressao 3D</span>
+        </div>
+      </div>
+      <h1 id="login-title">Entrar no GF ERP</h1>
+      <p>Use seu usuario autorizado para acessar os dados compartilhados da empresa.</p>
+      <form id="loginForm" class="login-form">
+        <label>E-mail <input id="loginEmail" name="email" type="email" autocomplete="username" required></label>
+        <label>Senha <input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
+        <button class="primary-button" type="submit">Entrar</button>
+      </form>
+      <div id="loginMessage" class="login-message" role="status"></div>
+    </div>
+  </section>
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">GF</div>
+      <div>
+        <strong>GF ERP</strong>
+        <span>GF Impressao 3D</span>
+      </div>
+    </div>
+    <nav id="menu" class="menu" aria-label="Modulos do sistema"></nav>
+    <div class="backup-box">
+      <span class="backup-title">Dados do servidor</span>
+      <button id="exportData" class="ghost-button" type="button">Exportar backup</button>
+      <label class="ghost-button file-button">
+        Importar backup
+        <input id="importData" type="file" accept="application/json">
+      </label>
+    </div>
+  </aside>
+
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">GF Impressao 3D</p>
+        <h1 id="pageTitle">Dashboard</h1>
+      </div>
+      <div class="top-actions">
+        <span id="syncStatus" class="sync-status">Conectando...</span>
+        <button id="installApp" class="secondary-button hidden" type="button">Instalar app</button>
+        <button id="seedData" class="secondary-button" type="button">Restaurar exemplos</button>
+        <button id="clearData" class="danger-button" type="button">Limpar dados</button>
+        <button id="logoutButton" class="secondary-button" type="button">Sair</button>
+      </div>
+    </header>
+
+    <section id="dashboard" class="view active" aria-labelledby="dashboard-title">
+      <div class="metrics-grid">
+        <article class="metric primary-metric">
+          <span>Saldo em caixa</span>
+          <strong id="metricCash">R$ 0,00</strong>
+        </article>
+        <article class="metric">
+          <span>Total vendido no mes</span>
+          <strong id="metricSales">R$ 0,00</strong>
+        </article>
+        <article class="metric">
+          <span>Lucro bruto estimado</span>
+          <strong id="metricGrossProfit">R$ 0,00</strong>
+        </article>
+        <article class="metric">
+          <span>A receber</span>
+          <strong id="metricReceivable">R$ 0,00</strong>
+        </article>
+        <article class="metric">
+          <span>A pagar</span>
+          <strong id="metricPayable">R$ 0,00</strong>
+        </article>
+        <article class="metric">
+          <span>Pedidos em producao</span>
+          <strong id="metricProduction">0</strong>
+        </article>
+        <article class="metric">
+          <span>Pedidos entregues</span>
+          <strong id="metricDelivered">0</strong>
+        </article>
+        <article class="metric">
+          <span>Meta mensal</span>
+          <strong id="metricMonthlyGoal">R$ 10.000,00</strong>
+        </article>
+      </div>
+      <div class="dashboard-grid">
+        <section class="panel goal-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="dashboard-title">Progresso da meta</h2>
+              <p class="panel-note">Acompanhamento do faturamento mensal da GF Impressao 3D.</p>
+            </div>
+          </div>
+          <div class="goal-summary">
+            <strong id="metricGoalProgress">0%</strong>
+            <span id="metricGoalRemaining">Faltam R$ 10.000,00 para bater a meta</span>
+          </div>
+          <div class="bar-track goal-track" aria-label="Progresso da meta mensal">
+            <div id="goalBar" class="bar goal-bar"></div>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Visao CFO</h2>
+              <p class="panel-note">Indicadores principais de caixa, lucro e compromissos.</p>
+            </div>
+          </div>
+          <div id="cfoHighlights" class="stack-list"></div>
+        </section>
+        <section class="panel dashboard-wide">
+          <div class="panel-head">
+            <h2>Alertas de estoque</h2>
+          </div>
+          <div id="stockAlerts" class="stack-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="sales" class="view" aria-labelledby="sales-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="sales-title">Vendas</h2>
+          <button class="primary-button" data-open-form="sales" type="button">Nova venda</button>
+        </div>
+        <div class="filter-row" data-filter-for="sales">
+          <label>Filtrar por mes e ano <input id="salesFilterMonth" type="month" data-month-filter="sales"></label>
+          <button class="secondary-button" type="button" data-clear-filter="sales">Limpar filtro</button>
+        </div>
+        <div id="salesTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="quotes" class="view" aria-labelledby="quotes-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="quotes-title">Orcamentos</h2>
+            <p class="panel-note">Cadastre propostas e transforme aprovadas em vendas.</p>
+          </div>
+          <button class="primary-button" data-open-form="quotes" type="button">Novo orcamento</button>
+        </div>
+        <div id="quotesTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="clients" class="view" aria-labelledby="clients-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="clients-title">Clientes</h2>
+          <button class="primary-button" data-open-form="clients" type="button">Novo cliente</button>
+        </div>
+        <div id="clientsTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="products" class="view" aria-labelledby="products-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="products-title">Produtos</h2>
+          <button class="primary-button" data-open-form="products" type="button">Novo produto</button>
+        </div>
+        <div id="productsTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="stock" class="view" aria-labelledby="stock-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="stock-title">Estoque</h2>
+          <button class="primary-button" data-open-form="stock" type="button">Novo movimento</button>
+        </div>
+        <div id="stockOverview" class="stock-grid"></div>
+        <div id="stockTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="cash" class="view" aria-labelledby="cash-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="cash-title">Caixa</h2>
+          <button class="primary-button" data-open-form="cash" type="button">Novo lancamento</button>
+        </div>
+        <div class="filter-row" data-filter-for="cash">
+          <label>Filtrar por mes e ano <input id="cashFilterMonth" type="month" data-month-filter="cash"></label>
+          <button class="secondary-button" type="button" data-clear-filter="cash">Limpar filtro</button>
+        </div>
+        <div id="cashTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="payables" class="view" aria-labelledby="payables-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="payables-title">Contas a pagar</h2>
+          <button class="primary-button" data-open-form="payables" type="button">Nova conta</button>
+        </div>
+        <div class="filter-row" data-filter-for="payables">
+          <label>Filtrar por mes e ano <input id="payablesFilterMonth" type="month" data-month-filter="payables"></label>
+          <button class="secondary-button" type="button" data-clear-filter="payables">Limpar filtro</button>
+        </div>
+        <div id="payablesSummary" class="summary-grid"></div>
+        <div id="payablesTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="receivables" class="view" aria-labelledby="receivables-title">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 id="receivables-title">Contas a receber</h2>
+          <button class="primary-button" data-open-form="receivables" type="button">Nova conta</button>
+        </div>
+        <div class="filter-row" data-filter-for="receivables">
+          <label>Filtrar por mes e ano <input id="receivablesFilterMonth" type="month" data-month-filter="receivables"></label>
+          <button class="secondary-button" type="button" data-clear-filter="receivables">Limpar filtro</button>
+        </div>
+        <div id="receivablesTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="reports" class="view" aria-labelledby="reports-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="reports-title">Relatorio mensal</h2>
+            <p class="panel-note" id="monthlyReportSubtitle">Resultado financeiro do mes atual.</p>
+          </div>
+          <div class="panel-actions">
+            <label class="month-filter">Mes e ano <input id="reportsFilterMonth" type="month" data-month-filter="reports"></label>
+            <button id="exportMonthlyPdf" class="primary-button" type="button">Exportar PDF</button>
+          </div>
+        </div>
+        <div id="monthlyReportGrid" class="report-grid"></div>
+        <div id="reportCostWarning" class="alert-banner hidden"></div>
+        <div class="report-sections">
+          <section>
+            <h3>Produtos mais vendidos</h3>
+            <div id="topProductsTable" class="table-wrap compact-table"></div>
+          </section>
+          <section>
+            <h3>Clientes que mais compraram</h3>
+            <div id="topClientsTable" class="table-wrap compact-table"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="entryDialog">
+    <form id="entryForm" method="dialog">
+      <div class="dialog-head">
+        <h2 id="dialogTitle">Novo registro</h2>
+        <button id="closeDialog" class="icon-button" type="button" aria-label="Fechar">x</button>
+      </div>
+      <div id="formFields" class="form-grid"></div>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelForm" type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Salvar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
