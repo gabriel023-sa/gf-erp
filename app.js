@@ -6,6 +6,59 @@ const MONTHLY_REVENUE_GOAL = 10000;
 const COST_WARNING_TEXT = 'Atenção: há vendas com custo não informado. O lucro pode estar superestimado.';
 const filteredModules = new Set(['sales', 'cash', 'payables', 'receivables']);
 const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes', 'production', 'sellers']);
+const viewPermissions = {
+  dashboard: 'view:dashboard',
+  sales: 'view:sales',
+  quotes: 'view:sales',
+  clients: 'view:clients',
+  products: 'view:products',
+  stock: 'view:stock',
+  cash: 'view:cash',
+  payables: 'view:payables',
+  receivables: 'view:receivables',
+  reports: 'view:reports',
+  production: 'view:production',
+  aiCfo: 'view:aiCfo',
+  sellers: 'view:sellers',
+  settings: 'view:settings'
+};
+const actionPermissions = {
+  clients: { create: 'create:clients', edit: 'edit:clients', delete: 'delete:clients' },
+  products: { create: 'create:products', edit: 'edit:products', delete: 'delete:products' },
+  sales: { create: 'create:sales', edit: 'edit:sales', delete: 'delete:sales' },
+  quotes: { create: 'create:quotes', edit: 'create:quotes', delete: 'delete:sales' },
+  production: { create: 'create:production', edit: 'edit:production', delete: 'delete:sales' },
+  stock: { create: 'edit:stock', edit: 'edit:stock', delete: 'edit:stock' },
+  cash: { create: 'edit:finance', edit: 'edit:finance', delete: 'edit:finance' },
+  payables: { create: 'create:payables', edit: 'edit:finance', delete: 'delete:accounts' },
+  receivables: { create: 'create:receivables', edit: 'edit:finance', delete: 'delete:accounts' },
+  sellers: { create: 'create:sellers', edit: 'edit:commission', delete: 'delete:sellers' }
+};
+const permissionGroups = [
+  { title: 'Visualizar', items: [
+    ['view:dashboard', 'Dashboard'], ['view:clients', 'Clientes'], ['view:products', 'Produtos'], ['view:stock', 'Estoque'],
+    ['view:sales', 'Vendas'], ['view:production', 'Producao'], ['view:finance', 'Financeiro'], ['view:cash', 'Caixa'],
+    ['view:payables', 'Contas a pagar'], ['view:receivables', 'Contas a receber'], ['view:sellers', 'Vendedores'],
+    ['view:commissions', 'Comissoes'], ['view:reports', 'Relatorios'], ['view:aiCfo', 'IA CFO'], ['view:settings', 'Configuracoes']
+  ] },
+  { title: 'Criar', items: [
+    ['create:clients', 'Cliente'], ['create:products', 'Produto'], ['create:sales', 'Venda'], ['create:quotes', 'Orcamento'],
+    ['create:production', 'Pedido de producao'], ['create:payables', 'Conta a pagar'], ['create:receivables', 'Conta a receber'], ['create:sellers', 'Vendedor']
+  ] },
+  { title: 'Editar', items: [
+    ['edit:clients', 'Cliente'], ['edit:products', 'Produto'], ['edit:sales', 'Venda'], ['edit:stock', 'Estoque'],
+    ['edit:production', 'Producao'], ['edit:finance', 'Financeiro'], ['edit:commission', 'Comissao'], ['edit:users', 'Usuario']
+  ] },
+  { title: 'Excluir', items: [
+    ['delete:clients', 'Cliente'], ['delete:products', 'Produto'], ['delete:sales', 'Venda'], ['delete:accounts', 'Conta'],
+    ['delete:sellers', 'Vendedor'], ['delete:users', 'Usuario']
+  ] },
+  { title: 'Acoes especiais', items: [
+    ['special:payCommission', 'Marcar comissao paga'], ['special:changeOtherPassword', 'Alterar senha de outro usuario'],
+    ['special:changePermissions', 'Alterar permissoes'], ['special:exportPdf', 'Exportar PDF'], ['special:viewProfit', 'Ver lucro'],
+    ['special:viewCash', 'Ver caixa'], ['special:viewOtherCommissions', 'Ver comissao de outros vendedores'], ['special:viewAiCfo', 'Ver IA CFO']
+  ] }
+];
 
 const modules = [
   { id: 'dashboard', title: 'Dashboard', icon: '01' },
@@ -20,7 +73,8 @@ const modules = [
   { id: 'reports', title: 'Relatorios', icon: '10' },
   { id: 'production', title: 'Producao', icon: '11' },
   { id: 'aiCfo', title: 'IA CFO', icon: '12' },
-  { id: 'sellers', title: 'Vendedores', icon: '13' }
+  { id: 'sellers', title: 'Vendedores', icon: '13' },
+  { id: 'settings', title: 'Configuracoes', icon: '14' }
 ];
 
 const schemas = {
@@ -338,6 +392,9 @@ let dashboardCharts = {};
 let waitingServiceWorker = null;
 let refreshingForUpdate = false;
 let aiCfoMessages = [];
+let systemUsers = [];
+let auditLog = [];
+let editingUserId = null;
 
 const menu = document.querySelector('#menu');
 const pageTitle = document.querySelector('#pageTitle');
@@ -356,6 +413,7 @@ const aiCfoQuestion = document.querySelector('#aiCfoQuestion');
 const aiCfoMessagesContainer = document.querySelector('#aiCfoMessages');
 const analyzeCompanyButton = document.querySelector('#analyzeCompany');
 const aiQuickQuestions = document.querySelector('#aiQuickQuestions');
+const userForm = document.querySelector('#userForm');
 
 init();
 
@@ -382,7 +440,11 @@ async function init() {
 }
 
 function renderMenu() {
-  menu.innerHTML = modules.map(module => `
+  const visibleModules = modules.filter(canViewModule);
+  if (!visibleModules.some(module => module.id === activeModule)) {
+    activeModule = visibleModules[0] ? visibleModules[0].id : 'dashboard';
+  }
+  menu.innerHTML = visibleModules.map(module => `
     <button type="button" data-view="${module.id}" class="${module.id === activeModule ? 'active' : ''}">
       <span class="nav-icon">${module.icon}</span>
       <span>${module.title}</span>
@@ -396,7 +458,13 @@ function renderMenu() {
 
 function bindActions() {
   document.querySelectorAll('[data-open-form]').forEach(button => {
-    button.addEventListener('click', () => openForm(button.dataset.openForm));
+    button.addEventListener('click', () => {
+      if (!canCreate(button.dataset.openForm)) {
+        alert('Voce nao tem permissao para criar este registro.');
+        return;
+      }
+      openForm(button.dataset.openForm);
+    });
   });
 
   document.querySelector('#closeDialog').addEventListener('click', () => dialog.close());
@@ -421,9 +489,19 @@ function bindActions() {
 
   document.querySelector('#exportData').addEventListener('click', exportBackup);
   document.querySelector('#importData').addEventListener('change', importBackup);
-  document.querySelector('#exportMonthlyPdf').addEventListener('click', exportMonthlyReportPdf);
-  document.querySelector('#exportCommissionsPdf')?.addEventListener('click', exportCommissionsPdf);
+  document.querySelector('#exportMonthlyPdf').addEventListener('click', () => {
+    if (!hasPermission('special:exportPdf')) return alert('Sem permissao para exportar PDF.');
+    exportMonthlyReportPdf();
+  });
+  document.querySelector('#exportCommissionsPdf')?.addEventListener('click', () => {
+    if (!hasPermission('special:exportPdf')) return alert('Sem permissao para exportar PDF.');
+    exportCommissionsPdf();
+  });
   document.querySelector('#logoutButton').addEventListener('click', () => logout(true));
+  document.querySelector('#newUserButton')?.addEventListener('click', () => openUserEditor());
+  document.querySelector('#cancelUserForm')?.addEventListener('click', closeUserEditor);
+  document.querySelector('#cancelUserFormBottom')?.addEventListener('click', closeUserEditor);
+  userForm?.addEventListener('submit', saveUser);
   document.querySelector('#installApp').addEventListener('click', installPwa);
   refreshAppButton.addEventListener('click', activateWaitingServiceWorker);
 
@@ -487,9 +565,11 @@ async function startAuthenticatedApp() {
   const session = await apiRequest('/api/auth/me');
   currentUser = session.user;
   await loadRemoteData();
+  await loadAdminSettings();
   await offerLocalMigration();
   showApp();
   connectRealtime();
+  renderMenu();
   renderAll();
   setSyncStatus('Online', 'online');
 }
@@ -504,6 +584,9 @@ function showApp() {
 }
 
 function logout(showMessage) {
+  if (authToken) {
+    apiRequest('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  }
   authToken = null;
   currentUser = null;
   localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -514,15 +597,50 @@ function logout(showMessage) {
 }
 
 function openView(viewId) {
+  if (!canViewModule({ id: viewId })) {
+    alert('Voce nao tem permissao para acessar esta tela.');
+    return;
+  }
   activeModule = viewId;
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewId));
   menu.querySelectorAll('button').forEach(button => button.classList.toggle('active', button.dataset.view === viewId));
   pageTitle.textContent = modules.find(module => module.id === viewId).title;
 }
 
+function hasPermission(permission) {
+  if (!currentUser) return false;
+  if (currentUser.role === 'admin' || currentUser.profile === 'admin') return true;
+  return Array.isArray(currentUser.permissions) && currentUser.permissions.includes(permission);
+}
+
+function canViewModule(module) {
+  if (!module) return false;
+  if (module.id === 'aiCfo' && !hasPermission('special:viewAiCfo')) return false;
+  return hasPermission(viewPermissions[module.id] || 'view:dashboard');
+}
+
+function canCreate(moduleId) {
+  const permission = actionPermissions[moduleId] && actionPermissions[moduleId].create;
+  return !permission || hasPermission(permission);
+}
+
+function canEdit(moduleId) {
+  const permission = actionPermissions[moduleId] && actionPermissions[moduleId].edit;
+  return !permission || hasPermission(permission);
+}
+
+function canDelete(moduleId) {
+  const permission = actionPermissions[moduleId] && actionPermissions[moduleId].delete;
+  return !permission || hasPermission(permission);
+}
+
 function openForm(moduleId, recordId = null) {
   const schema = schemas[moduleId];
   const record = recordId ? data[moduleId].find(item => item.id === recordId) : getDefaultRecord(moduleId);
+  if (recordId && !canEdit(moduleId)) {
+    alert('Voce nao tem permissao para editar este registro.');
+    return;
+  }
   if (moduleId === 'sellers' && !isAdmin()) {
     alert('Somente administradores podem cadastrar ou alterar vendedores e regras de comissao.');
     return;
@@ -592,6 +710,9 @@ function saveForm(event) {
   const formData = new FormData(entryForm);
   const previousRecord = recordId ? data[moduleId].find(item => item.id === recordId) : null;
   const record = previousRecord ? { ...previousRecord } : { id: makeId(moduleId) };
+
+  if (recordId && !canEdit(moduleId)) return alert('Voce nao tem permissao para editar este registro.');
+  if (!recordId && !canCreate(moduleId)) return alert('Voce nao tem permissao para criar este registro.');
 
   if (moduleId === 'sellers' && !isAdmin()) {
     alert('Somente administradores podem salvar vendedores e regras de comissao.');
@@ -699,6 +820,8 @@ function syncUpdatedRecord(moduleId, previousRecord, record) {
 }
 
 function renderAll() {
+  renderMenu();
+  syncActiveView();
   Object.keys(schemas).forEach(renderTable);
   renderStockOverview();
   renderProductionKanban();
@@ -708,6 +831,15 @@ function renderAll() {
   renderDashboard();
   renderReports();
   renderAiCfo();
+  renderSettings();
+  applyPermissionVisibility();
+}
+
+function syncActiveView() {
+  document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === activeModule));
+  menu.querySelectorAll('button').forEach(button => button.classList.toggle('active', button.dataset.view === activeModule));
+  const module = modules.find(item => item.id === activeModule);
+  if (module) pageTitle.textContent = module.title;
 }
 
 function renderTable(moduleId) {
@@ -765,10 +897,13 @@ function renderRowActions(moduleId, row) {
     return '<span class="status warn">Somente admin</span>';
   }
 
-  const baseActions = [
-    `<button class="mini-button" type="button" title="Editar" data-edit="${moduleId}:${row.id}">E</button>`,
-    `<button class="mini-button delete" type="button" title="Excluir" data-delete="${moduleId}:${row.id}">X</button>`
-  ];
+  const baseActions = [];
+  if (canEdit(moduleId)) {
+    baseActions.push(`<button class="mini-button" type="button" title="Editar" data-edit="${moduleId}:${row.id}">E</button>`);
+  }
+  if (canDelete(moduleId)) {
+    baseActions.push(`<button class="mini-button delete" type="button" title="Excluir" data-delete="${moduleId}:${row.id}">X</button>`);
+  }
 
   if (moduleId === 'quotes' && row.status === 'Aprovado' && !row.convertedSaleId) {
     baseActions.unshift(`<button class="mini-button convert" type="button" title="Transformar em venda" data-convert-quote="${row.id}">Vender</button>`);
@@ -790,6 +925,9 @@ function renderRowActions(moduleId, row) {
 }
 
 function getFilteredRows(moduleId, rows) {
+  if (moduleId === 'sales' && currentUser && currentUser.sellerId && !hasPermission('special:viewOtherCommissions')) {
+    rows = rows.filter(row => !row.sellerId || row.sellerId === currentUser.sellerId);
+  }
   if (!filteredModules.has(moduleId)) return rows;
 
   const monthValue = getMonthFilterValue(moduleId);
@@ -876,9 +1014,9 @@ function renderDashboard() {
   `;
 
   document.querySelector('#executiveMetrics').innerHTML = [
-    { icon: '💰', label: 'Caixa', value: money(cashBalance), detail: 'Saldo atual', level: cashBalance >= 0 ? 'status-good' : 'status-critical' },
+    { icon: '💰', label: 'Caixa', value: hasPermission('special:viewCash') ? money(cashBalance) : 'Restrito', detail: 'Saldo atual', level: cashBalance >= 0 ? 'status-good' : 'status-critical' },
     { icon: '📈', label: 'Faturamento do mês', value: money(salesMonth), detail: `${monthlySales.length} venda(s)`, level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical' },
-    { icon: '💵', label: 'Lucro líquido', value: money(netProfitMonth), detail: 'Estimado no mês', level: netProfitMonth >= 0 ? 'status-good' : 'status-critical' },
+    { icon: '💵', label: 'Lucro líquido', value: hasPermission('special:viewProfit') ? money(netProfitMonth) : 'Restrito', detail: 'Estimado no mês', level: netProfitMonth >= 0 ? 'status-good' : 'status-critical' },
     { icon: '📦', label: 'Estoque', value: `${lowStockItems.length}`, detail: 'Itens em atenção', level: lowStockItems.length ? 'status-warning' : 'status-good' },
     { icon: '🧾', label: 'Contas a receber', value: money(receivable), detail: 'Valores em aberto', level: receivable > 0 ? 'status-warning' : 'status-good' },
     { icon: '💸', label: 'Contas a pagar', value: money(payable), detail: 'Compromissos abertos', level: payable > cashBalance && payable > 0 ? 'status-critical' : payable > 0 ? 'status-warning' : 'status-good' },
@@ -1262,6 +1400,181 @@ function renderCommissions() {
   });
 }
 
+async function loadAdminSettings() {
+  if (!hasPermission('view:settings')) {
+    systemUsers = [];
+    auditLog = [];
+    return;
+  }
+  try {
+    const [usersResponse, auditResponse] = await Promise.all([
+      apiRequest('/api/admin/users'),
+      apiRequest('/api/admin/audit')
+    ]);
+    systemUsers = usersResponse.users || [];
+    auditLog = auditResponse.audit || [];
+  } catch {
+    systemUsers = [];
+    auditLog = [];
+  }
+}
+
+function renderSettings() {
+  renderUsersAccess();
+  renderAuditLog();
+}
+
+function renderUsersAccess() {
+  const target = document.querySelector('#usersAccessTable');
+  if (!target) return;
+  if (!hasPermission('view:settings')) {
+    target.innerHTML = '<div class="empty">Sem permissao para configuracoes.</div>';
+    return;
+  }
+  if (!systemUsers.length) {
+    target.innerHTML = '<div class="empty">Nenhum usuario cadastrado.</div>';
+    return;
+  }
+  const rows = systemUsers.map(user => `
+    <tr>
+      <td data-label="Usuario"><strong>${escapeHtml(user.name)}</strong><br><small>${escapeHtml(user.email)}</small></td>
+      <td data-label="Cargo">${escapeHtml(user.roleTitle || '-')}</td>
+      <td data-label="Perfil"><span class="status ${user.profile === 'admin' ? 'ok' : 'warn'}">${formatProfile(user.profile)}</span></td>
+      <td data-label="Status"><span class="status ${user.status === 'Ativo' ? 'ok' : 'bad'}">${escapeHtml(user.status)}</span></td>
+      <td data-label="Permissoes">${user.permissions ? user.permissions.length : 0} permissao(oes)</td>
+      <td class="actions" data-label="Acoes">
+        <button class="mini-button" type="button" data-edit-user="${escapeHtml(user.id)}">Editar</button>
+        <button class="mini-button delete" type="button" data-inactivate-user="${escapeHtml(user.id)}">Inativar</button>
+      </td>
+    </tr>
+  `).join('');
+  target.innerHTML = `<table><thead><tr><th>Usuario</th><th>Cargo</th><th>Perfil</th><th>Status</th><th>Permissoes</th><th>Acoes</th></tr></thead><tbody>${rows}</tbody></table>`;
+  target.querySelectorAll('[data-edit-user]').forEach(button => button.addEventListener('click', () => openUserEditor(button.dataset.editUser)));
+  target.querySelectorAll('[data-inactivate-user]').forEach(button => button.addEventListener('click', () => inactivateUser(button.dataset.inactivateUser)));
+}
+
+function renderAuditLog() {
+  const target = document.querySelector('#auditLogTable');
+  if (!target) return;
+  if (!hasPermission('view:settings')) {
+    target.innerHTML = '<div class="empty">Sem permissao para auditoria.</div>';
+    return;
+  }
+  if (!auditLog.length) {
+    target.innerHTML = '<div class="empty">Nenhum evento de auditoria registrado.</div>';
+    return;
+  }
+  const rows = auditLog.slice(0, 80).map(entry => {
+    const details = entry.details || {};
+    const user = systemUsers.find(item => item.id === (entry.user_id || entry.userId));
+    return `
+      <tr>
+        <td data-label="Data">${formatDateTime(entry.created_at || entry.createdAt)}</td>
+        <td data-label="Usuario">${escapeHtml(user ? user.name : entry.user_id || 'Sistema')}</td>
+        <td data-label="Acao"><span class="status warn">${escapeHtml(entry.action)}</span></td>
+        <td data-label="Descricao">${escapeHtml(formatAuditDetails(details))}</td>
+      </tr>
+    `;
+  }).join('');
+  target.innerHTML = `<table><thead><tr><th>Data</th><th>Usuario</th><th>Acao</th><th>Descricao</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function openUserEditor(userId = null) {
+  if (!isAdmin()) return alert('Somente administradores podem alterar usuarios e permissoes.');
+  editingUserId = userId;
+  const user = userId ? systemUsers.find(item => item.id === userId) : null;
+  const panel = document.querySelector('#userEditorPanel');
+  const form = userForm;
+  if (!panel || !form) return;
+  panel.classList.remove('hidden');
+  setText('userEditorTitle', user ? `Editar ${user.name}` : 'Novo usuario');
+  form.elements.name.value = user ? user.name : '';
+  form.elements.email.value = user ? user.email : '';
+  form.elements.password.value = '';
+  form.elements.confirmPassword.value = '';
+  form.elements.photoUrl.value = user ? user.photoUrl || '' : '';
+  form.elements.roleTitle.value = user ? user.roleTitle || '' : '';
+  form.elements.profile.value = user ? user.profile || 'custom' : 'custom';
+  form.elements.status.value = user ? user.status || 'Ativo' : 'Ativo';
+  renderUserSellerOptions(user ? user.sellerId : '');
+  renderPermissionsMatrix(user ? user.permissions || [] : []);
+}
+
+function closeUserEditor() {
+  editingUserId = null;
+  document.querySelector('#userEditorPanel')?.classList.add('hidden');
+  userForm?.reset();
+}
+
+function renderUserSellerOptions(selectedId) {
+  const select = document.querySelector('#userSellerSelect');
+  if (!select) return;
+  select.innerHTML = '<option value="">Nenhum</option>' + data.sellers.map(seller => `<option value="${escapeHtml(seller.id)}" ${seller.id === selectedId ? 'selected' : ''}>${escapeHtml(seller.name)}</option>`).join('');
+}
+
+function renderPermissionsMatrix(selectedPermissions) {
+  const target = document.querySelector('#permissionsMatrix');
+  if (!target) return;
+  const selected = new Set(selectedPermissions || []);
+  target.innerHTML = permissionGroups.map(group => `
+    <section class="permission-group">
+      <h3>${escapeHtml(group.title)}</h3>
+      <div class="permission-options">
+        ${group.items.map(([value, label]) => `
+          <label><input type="checkbox" name="permissions" value="${escapeHtml(value)}" ${selected.has(value) ? 'checked' : ''}> ${escapeHtml(label)}</label>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
+}
+
+async function saveUser(event) {
+  event.preventDefault();
+  if (!isAdmin()) return alert('Sem permissao para salvar usuarios.');
+  const form = new FormData(userForm);
+  const password = form.get('password') || '';
+  const confirmPassword = form.get('confirmPassword') || '';
+  if (password !== confirmPassword) return alert('Senha e confirmacao nao conferem.');
+  if (!editingUserId && !password) return alert('Informe uma senha para o novo usuario.');
+  const payload = {
+    name: form.get('name'),
+    email: form.get('email'),
+    password,
+    photoUrl: form.get('photoUrl'),
+    roleTitle: form.get('roleTitle'),
+    profile: form.get('profile'),
+    status: form.get('status'),
+    sellerId: form.get('sellerId'),
+    permissions: form.getAll('permissions')
+  };
+  if (!password) delete payload.password;
+  try {
+    await apiRequest(editingUserId ? `/api/admin/users/${editingUserId}` : '/api/admin/users', {
+      method: editingUserId ? 'PUT' : 'POST',
+      body: payload
+    });
+    await loadAdminSettings();
+    closeUserEditor();
+    renderSettings();
+    showToast('Usuario salvo.');
+  } catch {
+    alert('Nao foi possivel salvar o usuario. Verifique se o e-mail ja existe ou se ha pelo menos um admin ativo.');
+  }
+}
+
+async function inactivateUser(userId) {
+  if (!isAdmin()) return alert('Sem permissao para inativar usuarios.');
+  if (!confirm('Inativar este usuario?')) return;
+  try {
+    await apiRequest(`/api/admin/users/${userId}`, { method: 'DELETE' });
+    await loadAdminSettings();
+    renderSettings();
+    showToast('Usuario inativado.');
+  } catch {
+    alert('Nao foi possivel inativar. O ultimo administrador nao pode ser removido.');
+  }
+}
+
 function renderCommissionRankingBlock(title, rows) {
   const items = rows.slice(0, 5).map(row => `
     <li>
@@ -1281,7 +1594,7 @@ function renderCommissionRankingBlock(title, rows) {
 
 function renderCommissionActions(commission) {
   if (commission.status === 'Pago') return '<span class="status ok">Pago</span>';
-  if (!isAdmin()) return '<span class="status warn">Somente admin</span>';
+  if (!hasPermission('special:payCommission')) return '<span class="status warn">Sem permissao</span>';
   return `
     <div class="commission-action">
       <input type="text" data-commission-note="${escapeHtml(commission.id)}" placeholder="Observacao">
@@ -1291,7 +1604,7 @@ function renderCommissionActions(commission) {
 }
 
 function markCommissionPaid(commissionId) {
-  if (!isAdmin()) {
+  if (!hasPermission('special:payCommission')) {
     alert('Somente administradores podem marcar comissao como paga.');
     return;
   }
@@ -1311,6 +1624,7 @@ function markCommissionPaid(commissionId) {
 function getCommissionReportData() {
   const monthValue = document.querySelector('#commissionsFilterMonth')?.value || '';
   const rows = data.commissions
+    .filter(commission => hasPermission('special:viewOtherCommissions') || !currentUser?.sellerId || commission.sellerId === currentUser.sellerId)
     .filter(commission => !monthValue || matchesMonth(commission.saleDate || commission.paymentDate, monthValue))
     .sort((a, b) => String(b.saleDate || '').localeCompare(String(a.saleDate || '')));
   const totalSold = rows.reduce((total, row) => total + Number(row.saleValue || 0), 0);
@@ -1700,6 +2014,10 @@ function formatRankingLines(items, formatter) {
 }
 
 function removeRecord(moduleId, id) {
+  if (!canDelete(moduleId)) {
+    alert('Voce nao tem permissao para excluir este registro.');
+    return;
+  }
   const record = data[moduleId].find(item => item.id === id);
   if (moduleId === 'stock' && record && record.sourceSaleId) {
     alert('Este e um movimento automatico gerado por venda e nao pode ser excluido manualmente.');
@@ -2395,6 +2713,41 @@ function formatPercent(value) {
 
 function isAdmin() {
   return currentUser && currentUser.role === 'admin';
+}
+
+function applyPermissionVisibility() {
+  document.querySelectorAll('[data-open-form]').forEach(button => {
+    button.classList.toggle('hidden', !canCreate(button.dataset.openForm));
+  });
+  document.querySelector('#exportMonthlyPdf')?.classList.toggle('hidden', !hasPermission('special:exportPdf'));
+  document.querySelector('#exportCommissionsPdf')?.classList.toggle('hidden', !hasPermission('special:exportPdf'));
+  document.querySelector('#seedData')?.classList.toggle('hidden', !hasPermission('view:settings'));
+  document.querySelector('#clearData')?.classList.toggle('hidden', !hasPermission('view:settings'));
+}
+
+function formatProfile(profile) {
+  return ({
+    admin: 'Administrador',
+    manager: 'Gerente',
+    vendedor: 'Vendedor',
+    producao: 'Producao',
+    financeiro: 'Financeiro',
+    custom: 'Personalizado'
+  })[profile] || profile || 'Personalizado';
+}
+
+function formatDateTime(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleString('pt-BR');
+}
+
+function formatAuditDetails(details) {
+  if (!details || typeof details !== 'object') return '';
+  if (details.email) return `E-mail: ${details.email}`;
+  if (details.userId) return `Usuario: ${details.userId}`;
+  if (details.changes) return `${details.changes.length} alteracao(oes)`;
+  if (details.updatedAt) return `Atualizado em ${formatDateTime(details.updatedAt)}`;
+  return JSON.stringify(details);
 }
 
 function isSaleReceived(status) {

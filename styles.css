@@ -899,6 +899,50 @@ h2 {
   background: #fff;
 }
 
+.user-access-form {
+  display: grid;
+  gap: 18px;
+}
+
+.permissions-matrix {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.permission-group {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.permission-group h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.permission-options {
+  display: grid;
+  gap: 9px;
+}
+
+.permission-options label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.permission-options input {
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+}
+
 .kanban-board {
   display: grid;
   grid-template-columns: repeat(7, minmax(220px, 1fr));
@@ -1495,6 +1539,7 @@ dialog::backdrop {
   .equipment-grid,
   .ai-cfo-layout,
   .commission-report-grid,
+  .permissions-matrix,
   .report-grid,
   .report-sections,
   .stock-grid,
@@ -1535,6 +1580,7 @@ dialog::backdrop {
   .equipment-grid,
   .ai-cfo-layout,
   .commission-report-grid,
+  .permissions-matrix,
   .report-grid,
   .report-sections,
   .stock-grid,

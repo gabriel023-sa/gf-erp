@@ -375,6 +375,73 @@
         </aside>
       </div>
     </section>
+
+    <section id="settings" class="view" aria-labelledby="settings-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="settings-title">Usuarios e Acesso</h2>
+            <p class="panel-note">Gerencie usuarios, perfis, status e permissoes do GF ERP.</p>
+          </div>
+          <button id="newUserButton" class="primary-button" type="button">Novo usuario</button>
+        </div>
+        <div id="usersAccessTable" class="table-wrap mobile-card-table"></div>
+      </div>
+
+      <div id="userEditorPanel" class="panel hidden">
+        <div class="panel-head">
+          <div>
+            <h2 id="userEditorTitle">Novo usuario</h2>
+            <p class="panel-note">Senha e permissoes sao salvas no servidor. A senha nunca fica em texto puro.</p>
+          </div>
+          <button id="cancelUserForm" class="secondary-button" type="button">Cancelar</button>
+        </div>
+        <form id="userForm" class="user-access-form">
+          <div class="form-grid">
+            <div class="field"><label>Nome</label><input name="name" type="text" required></div>
+            <div class="field"><label>E-mail</label><input name="email" type="email" required></div>
+            <div class="field"><label>Senha</label><input name="password" type="password" autocomplete="new-password"></div>
+            <div class="field"><label>Confirmar senha</label><input name="confirmPassword" type="password" autocomplete="new-password"></div>
+            <div class="field"><label>Foto (URL)</label><input name="photoUrl" type="url"></div>
+            <div class="field"><label>Cargo/Função</label><input name="roleTitle" type="text"></div>
+            <div class="field">
+              <label>Perfil</label>
+              <select name="profile" required>
+                <option value="admin">Administrador</option>
+                <option value="manager">Gerente</option>
+                <option value="vendedor">Vendedor</option>
+                <option value="producao">Produção</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Status</label>
+              <select name="status" required>
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </div>
+            <div class="field"><label>Vendedor vinculado</label><select name="sellerId" id="userSellerSelect"><option value="">Nenhum</option></select></div>
+          </div>
+          <div id="permissionsMatrix" class="permissions-matrix"></div>
+          <div class="dialog-actions">
+            <button class="secondary-button" type="button" id="cancelUserFormBottom">Cancelar</button>
+            <button class="primary-button" type="submit">Salvar permissoes</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Auditoria</h2>
+            <p class="panel-note">Registro das acoes importantes do sistema.</p>
+          </div>
+        </div>
+        <div id="auditLogTable" class="table-wrap mobile-card-table"></div>
+      </div>
+    </section>
   </main>
 
   <dialog id="entryDialog">

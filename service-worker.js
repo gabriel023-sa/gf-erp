@@ -1,4 +1,4 @@
-const APP_VERSION = '2026.06.29.5';
+const APP_VERSION = '2026.06.29.6';
 const CACHE_PREFIX = 'gf-erp-cache-';
 const CACHE_NAME = `${CACHE_PREFIX}${APP_VERSION}`;
 const APP_ASSETS = [

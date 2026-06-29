@@ -8,6 +8,8 @@ Sistema web da GF Impressao 3D com dashboard financeiro, vendas, clientes, produ
 - Os dados sairam do `localStorage` e agora ficam em banco PostgreSQL.
 - O sistema possui API Node.js.
 - O acesso exige login e senha.
+- Usuarios agora possuem perfil, status e permissoes por modulo.
+- Senhas sao salvas apenas com hash `bcrypt`, nunca em texto puro.
 - Varios dispositivos logados compartilham os mesmos dados.
 - Atualizacoes sao enviadas em tempo real por WebSocket.
 - O app pode ser instalado como PWA no Android, Windows e iPhone.
@@ -53,6 +55,12 @@ Login local padrao:
 
 - E-mail: `admin@gfimpressao3d.com.br`
 - Senha: `admin123`
+
+Usuario inicial de exemplo para vendas:
+
+- E-mail: `bianca@gfimpressao3d.com.br`
+- Senha: `bianca123`
+- Perfil: Personalizado, com acesso restrito a vendas, clientes, produtos, estoque, producao e comissoes proprias.
 
 ## Usar PostgreSQL local com Docker
 
@@ -102,7 +110,16 @@ O banco guarda:
 
 - usuarios
 - estado principal do ERP
-- log simples de auditoria
+- log de auditoria
+
+Os usuarios possuem:
+
+- perfil: Administrador, Gerente, Vendedor, Producao, Financeiro ou Personalizado
+- status Ativo/Inativo
+- permissoes de visualizar, criar, editar, excluir e acoes especiais
+- senha com hash seguro `bcrypt`
+
+Usuario inativo nao consegue fazer login.
 
 ## Backup
 
@@ -141,11 +158,15 @@ Principais rotas:
 - `GET /api/health`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `POST /api/auth/logout`
 - `GET /api/data`
 - `PUT /api/data`
 - `POST /api/admin/seed`
 - `GET /api/admin/users`
 - `POST /api/admin/users`
+- `PUT /api/admin/users/:id`
+- `DELETE /api/admin/users/:id`
+- `GET /api/admin/audit`
 
 Rotas protegidas usam:
 
@@ -167,6 +188,7 @@ Veja o guia completo em:
 - `manifest.webmanifest`: instalacao PWA
 - `service-worker.js`: cache basico do app
 - `server/index.js`: API, autenticacao, banco PostgreSQL e WebSocket
+- `server/permissions.js`: perfis e permissoes do sistema
 - `server/initial-data.js`: dados iniciais
 - `server/migrations/`: migracoes SQL do PostgreSQL
 - `server/integrations/`: base para futuras integracoes

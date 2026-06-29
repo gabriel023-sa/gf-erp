@@ -2,7 +2,7 @@
 
 ## Fase 1 - Estabilidade
 
-Status: em andamento, base local validada.
+Status: em andamento, base local validada com controle de acesso.
 
 - Login local funcionando.
 - API local funcionando.
@@ -10,6 +10,9 @@ Status: em andamento, base local validada.
 - Modulos antigos revisados apos migracao para backend.
 - Regras de venda, caixa, estoque, contas e backup testadas.
 - Projeto versionado em Git.
+- Sprint 5 adicionou usuarios, perfis, permissoes e auditoria.
+- Senhas sao armazenadas com hash `bcrypt`.
+- Backend bloqueia alteracoes sem permissao e usuario inativo nao acessa.
 
 ## Fase 2 - Banco de dados profissional
 
@@ -43,11 +46,14 @@ Status: preparado.
 
 ## Fase 5 - Recursos avancados
 
-Status: proxima etapa.
+Status: em andamento.
 
-- Dashboard com graficos.
+- Dashboard com graficos concluido.
+- Fotos dos produtos concluido.
+- Controle de producao para impressao 3D e sublimacao concluido.
+- Modulo IA CFO concluido com regras internas.
+- Modulo vendedores e comissoes concluido.
+- Modulo usuarios/permissoes concluido.
 - Notificacoes.
 - Agenda de entregas.
-- Fotos dos produtos.
-- Controle de producao para impressao 3D e sublimacao.
 - Integracoes futuras em `server/integrations`.
