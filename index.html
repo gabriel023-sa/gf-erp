@@ -213,8 +213,34 @@
           <h2 id="stock-title">Estoque</h2>
           <button class="primary-button" data-open-form="stock" type="button">Novo movimento</button>
         </div>
+        <div id="stockSummary" class="summary-grid"></div>
         <div id="stockOverview" class="stock-grid"></div>
         <div id="stockTable" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <section id="production" class="view" aria-labelledby="production-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="production-title">Producao</h2>
+            <p class="panel-note">Kanban de pedidos, prazos e equipamentos da GF Impressao 3D.</p>
+          </div>
+          <button class="primary-button" data-open-form="production" type="button">Novo pedido</button>
+        </div>
+        <div id="productionKanban" class="kanban-board"></div>
+      </div>
+      <div class="panel production-equipment-panel">
+        <div class="panel-head">
+          <h2>Equipamentos</h2>
+        </div>
+        <div id="equipmentBoard" class="equipment-grid"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Lista de pedidos</h2>
+        </div>
+        <div id="productionTable" class="table-wrap"></div>
       </div>
     </section>
 

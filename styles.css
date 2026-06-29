@@ -759,6 +759,16 @@ h2 {
   background: #fff8e8;
 }
 
+.stock-card.critical-stock {
+  border-color: rgba(180, 56, 56, .45);
+  background: #fff1f1;
+}
+
+.stock-card.ideal-stock {
+  border-color: rgba(13, 148, 136, .35);
+  background: #f0fdfa;
+}
+
 .stock-card span {
   color: var(--muted);
   font-size: 12px;
@@ -819,6 +829,150 @@ h2 {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(220px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.kanban-column {
+  min-height: 320px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+
+.kanban-column header,
+.production-card-head,
+.equipment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.kanban-column header {
+  margin-bottom: 12px;
+}
+
+.kanban-column header span {
+  min-width: 28px;
+  min-height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #e6ebf0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.kanban-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.production-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(28, 32, 36, .06);
+  display: grid;
+  gap: 8px;
+}
+
+.production-card.late {
+  border-left-color: var(--danger);
+  background: #fff1f1;
+}
+
+.production-card span,
+.production-card small {
+  color: var(--muted);
+}
+
+.production-card select,
+.equipment-card select,
+.equipment-card input,
+.equipment-card textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.kanban-empty {
+  padding: 14px;
+}
+
+.production-equipment-panel {
+  margin-top: 16px;
+}
+
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.equipment-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: 8px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.equipment-card.status-warning {
+  border-top-color: var(--gold);
+}
+
+.equipment-card.status-critical {
+  border-top-color: var(--danger);
+}
+
+.equipment-card label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.equipment-card textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.product-photo,
+.product-photo-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+}
+
+.product-photo {
+  object-fit: cover;
+  border: 1px solid var(--line);
+}
+
+.product-photo-placeholder {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--nav);
+  font-size: 13px;
+  font-weight: 900;
 }
 
 table {
@@ -1124,6 +1278,7 @@ dialog::backdrop {
   .dashboard-grid,
   .executive-metrics,
   .charts-grid,
+  .equipment-grid,
   .report-grid,
   .report-sections,
   .stock-grid,
@@ -1161,6 +1316,7 @@ dialog::backdrop {
   .dashboard-grid,
   .executive-metrics,
   .charts-grid,
+  .equipment-grid,
   .report-grid,
   .report-sections,
   .stock-grid,
@@ -1177,6 +1333,11 @@ dialog::backdrop {
 
   .chart-panel {
     min-height: 300px;
+  }
+
+  .kanban-board {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
   }
 
   .update-banner {

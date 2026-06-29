@@ -5,7 +5,7 @@ const API_BASE_URL = window.GF_ERP_API_BASE || '';
 const MONTHLY_REVENUE_GOAL = 10000;
 const COST_WARNING_TEXT = 'Atenção: há vendas com custo não informado. O lucro pode estar superestimado.';
 const filteredModules = new Set(['sales', 'cash', 'payables', 'receivables']);
-const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes']);
+const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes', 'production']);
 
 const modules = [
   { id: 'dashboard', title: 'Dashboard', icon: '01' },
@@ -17,7 +17,8 @@ const modules = [
   { id: 'cash', title: 'Caixa', icon: '07' },
   { id: 'payables', title: 'Contas a Pagar', icon: '08' },
   { id: 'receivables', title: 'Contas a Receber', icon: '09' },
-  { id: 'reports', title: 'Relatorios', icon: '10' }
+  { id: 'reports', title: 'Relatorios', icon: '10' },
+  { id: 'production', title: 'Producao', icon: '11' }
 ];
 
 const schemas = {
@@ -31,6 +32,7 @@ const schemas = {
       { name: 'value', label: 'Valor total', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'paymentMethod', label: 'Forma de pagamento', type: 'select', options: ['Pix', 'Dinheiro', 'Debito', 'Credito', 'Parcelado'], required: true },
       { name: 'status', label: 'Status', type: 'select', options: ['Recebido', 'A receber', 'Entregue', 'Em producao'], required: true },
+      { name: 'createProductionOrder', label: 'Gerar pedido de producao automaticamente', type: 'checkbox' },
       { name: 'biancaCommission', label: 'Comissao da Bianca 5%', type: 'checkbox' },
       { name: 'notes', label: 'Observacoes', type: 'textarea', full: true }
     ],
@@ -67,15 +69,38 @@ const schemas = {
     title: 'produto',
     fields: [
       { name: 'name', label: 'Nome do produto', type: 'text', required: true },
+      { name: 'photoUrl', label: 'Foto do produto (URL)', type: 'url' },
       { name: 'category', label: 'Categoria', type: 'text' },
+      { name: 'supplier', label: 'Fornecedor', type: 'text' },
+      { name: 'internalCode', label: 'Codigo interno', type: 'text' },
       { name: 'cost', label: 'Custo unitario', type: 'number', min: 0, step: 0.01 },
       { name: 'price', label: 'Preco de venda', type: 'number', min: 0, step: 0.01 },
       { name: 'minStock', label: 'Estoque minimo', type: 'number', step: 1, required: true },
+      { name: 'idealStock', label: 'Estoque ideal', type: 'number', step: 1 },
+      { name: 'profitMargin', label: 'Margem de lucro %', type: 'number', min: 0, step: 0.01 },
+      { name: 'avgProductionTime', label: 'Tempo medio de producao', type: 'text' },
+      { name: 'active', label: 'Produto ativo', type: 'checkbox', defaultValue: true },
       { name: 'inventoryItemId', label: 'Item de estoque vinculado', type: 'select', source: 'inventoryItems' },
       { name: 'stockUsageQty', label: 'Qtd. baixada por venda', type: 'number', min: 0, step: 0.01 },
       { name: 'notes', label: 'Observacoes', type: 'textarea', full: true }
     ],
-    columns: ['name', 'category', 'cost', 'price', 'estimatedProfit', 'inventoryItemId', 'stockUsageQty', 'notes']
+    columns: ['productPhoto', 'name', 'internalCode', 'category', 'supplier', 'cost', 'price', 'profitMargin', 'active', 'estimatedProfit', 'inventoryItemId', 'stockUsageQty']
+  },
+  production: {
+    title: 'pedido de producao',
+    fields: [
+      { name: 'orderNumber', label: 'Numero do pedido', type: 'text', required: true },
+      { name: 'clientId', label: 'Cliente', type: 'select', source: 'clients', required: true },
+      { name: 'productId', label: 'Produto', type: 'select', source: 'products', required: true },
+      { name: 'quantity', label: 'Quantidade', type: 'number', min: 1, step: 1, required: true },
+      { name: 'productionType', label: 'Tipo de producao', type: 'select', options: ['Sublimacao', 'Impressao 3D', 'Grafica', 'Outro'], required: true },
+      { name: 'status', label: 'Status', type: 'select', options: ['Novo', 'Arte', 'Aprovado', 'Produzindo', 'Acabamento', 'Pronto', 'Entregue', 'Cancelado'], required: true },
+      { name: 'entryDate', label: 'Data de entrada', type: 'date', required: true },
+      { name: 'deadline', label: 'Prazo de entrega', type: 'date', required: true },
+      { name: 'responsible', label: 'Responsavel', type: 'text' },
+      { name: 'notes', label: 'Observacoes', type: 'textarea', full: true }
+    ],
+    columns: ['orderNumber', 'clientId', 'productId', 'quantity', 'productionType', 'status', 'entryDate', 'deadline', 'responsible', 'saleLink']
   },
   stock: {
     title: 'movimento de estoque',
@@ -150,11 +175,19 @@ const labels = {
   email: 'E-mail',
   document: 'CPF/CNPJ',
   category: 'Categoria',
+  productPhoto: 'Foto',
+  photoUrl: 'Foto',
+  supplier: 'Fornecedor',
+  internalCode: 'Codigo interno',
   cost: 'Custo unitario',
   price: 'Preco de venda',
   estimatedProfit: 'Lucro estimado',
   stock: 'Estoque',
   minStock: 'Estoque minimo',
+  idealStock: 'Estoque ideal',
+  profitMargin: 'Margem %',
+  avgProductionTime: 'Tempo medio',
+  active: 'Ativo',
   stockUsageQty: 'Baixa por venda',
   notes: 'Observacoes',
   type: 'Tipo',
@@ -168,7 +201,12 @@ const labels = {
   installmentInfo: 'Parcelas',
   paymentDate: 'Data de pagamento',
   receivedDate: 'Data de recebimento',
-  originInfo: 'Origem'
+  originInfo: 'Origem',
+  orderNumber: 'Pedido',
+  productionType: 'Tipo',
+  entryDate: 'Entrada',
+  responsible: 'Responsavel',
+  saleLink: 'Venda'
 };
 
 const emptyData = {
@@ -176,6 +214,8 @@ const emptyData = {
   quotes: [],
   clients: [],
   products: [],
+  production: [],
+  equipment: [],
   inventoryItems: [],
   stock: [],
   cash: [],
@@ -189,19 +229,19 @@ const sampleData = {
     { id: 'c2', name: 'Loja Maker', phone: '(11) 3333-2211', email: 'compras@lojamaker.com', document: '12.345.678/0001-90', address: 'Santo Andre, SP' }
   ],
   products: [
-    { id: 'p1', name: 'Caneca branca personalizada', category: 'Canecas personalizadas', cost: 11, price: 25, stock: 0, minStock: 0, inventoryItemId: 'i1', stockUsageQty: 1, notes: '' },
-    { id: 'p2', name: 'Caneca magica personalizada', category: 'Canecas personalizadas', cost: 20, price: 40, stock: 0, minStock: 0, inventoryItemId: 'i2', stockUsageQty: 1, notes: '' },
-    { id: 'p3', name: 'Peca impressa 3D sob encomenda', category: 'Impressao 3D', cost: null, price: null, stock: 0, minStock: 0, inventoryItemId: 'i7', stockUsageQty: 1, notes: 'Custo variavel e preco variavel conforme projeto.' }
+    { id: 'p1', name: 'Caneca branca personalizada', photoUrl: '', category: 'Canecas personalizadas', supplier: 'Fornecedor de canecas', internalCode: 'GF-CAN-BR', cost: 11, price: 25, stock: 0, minStock: 0, idealStock: 30, profitMargin: 127.27, avgProductionTime: '30 min', active: true, inventoryItemId: 'i1', stockUsageQty: 1, notes: '' },
+    { id: 'p2', name: 'Caneca magica personalizada', photoUrl: '', category: 'Canecas personalizadas', supplier: 'Fornecedor de canecas', internalCode: 'GF-CAN-MAG', cost: 20, price: 40, stock: 0, minStock: 0, idealStock: 20, profitMargin: 100, avgProductionTime: '35 min', active: true, inventoryItemId: 'i2', stockUsageQty: 1, notes: '' },
+    { id: 'p3', name: 'Peca impressa 3D sob encomenda', photoUrl: '', category: 'Impressao 3D', supplier: 'Producao interna', internalCode: 'GF-3D-SOB', cost: null, price: null, stock: 0, minStock: 0, idealStock: 0, profitMargin: null, avgProductionTime: 'Variavel', active: true, inventoryItemId: 'i7', stockUsageQty: 1, notes: 'Custo variavel e preco variavel conforme projeto.' }
   ],
   inventoryItems: [
-    { id: 'i1', name: 'Canecas brancas', category: 'Sublimacao', quantity: 8, minStock: 5, unit: 'un' },
-    { id: 'i2', name: 'Canecas magicas', category: 'Sublimacao', quantity: 4, minStock: 3, unit: 'un' },
-    { id: 'i3', name: 'Papel sublimatico', category: 'Sublimacao', quantity: 50, minStock: 20, unit: 'folhas' },
-    { id: 'i4', name: 'Tinta sublimatica', category: 'Sublimacao', quantity: 2, minStock: 1, unit: 'kit' },
-    { id: 'i5', name: 'Fita termica', category: 'Sublimacao', quantity: 3, minStock: 1, unit: 'rolo' },
-    { id: 'i6', name: 'Caixas para entrega', category: 'Embalagem', quantity: 20, minStock: 10, unit: 'un' },
-    { id: 'i7', name: 'Filamento PLA', category: 'Impressao 3D', quantity: 2, minStock: 1, unit: 'kg' },
-    { id: 'i8', name: 'Filamento PETG', category: 'Impressao 3D', quantity: 1, minStock: 1, unit: 'kg' }
+    { id: 'i1', name: 'Canecas brancas', category: 'Sublimacao', quantity: 8, minStock: 5, idealStock: 30, unit: 'un', unitCost: 11 },
+    { id: 'i2', name: 'Canecas magicas', category: 'Sublimacao', quantity: 4, minStock: 3, idealStock: 20, unit: 'un', unitCost: 20 },
+    { id: 'i3', name: 'Papel sublimatico', category: 'Sublimacao', quantity: 50, minStock: 20, idealStock: 100, unit: 'folhas', unitCost: 0 },
+    { id: 'i4', name: 'Tinta sublimatica', category: 'Sublimacao', quantity: 2, minStock: 1, idealStock: 3, unit: 'kit', unitCost: 0 },
+    { id: 'i5', name: 'Fita termica', category: 'Sublimacao', quantity: 3, minStock: 1, idealStock: 5, unit: 'rolo', unitCost: 0 },
+    { id: 'i6', name: 'Caixas para entrega', category: 'Embalagem', quantity: 20, minStock: 10, idealStock: 50, unit: 'un', unitCost: 0 },
+    { id: 'i7', name: 'Filamento PLA', category: 'Impressao 3D', quantity: 2, minStock: 1, idealStock: 4, unit: 'kg', unitCost: 74.9 },
+    { id: 'i8', name: 'Filamento PETG', category: 'Impressao 3D', quantity: 1, minStock: 1, idealStock: 3, unit: 'kg', unitCost: 0 }
   ],
   sales: [
     { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
@@ -224,6 +264,15 @@ const sampleData = {
     { id: 'pa-ene-01', dueDate: today(15), supplier: 'Concessionaria de energia', description: 'Energia', expenseType: 'Fixa', frequency: 'Mensal recorrente', installment: null, installmentsTotal: null, value: 0, status: 'Aberta', paymentDate: '' },
     { id: 'pa-emb-01', dueDate: today(12), supplier: 'Fornecedor de embalagens', description: 'Embalagens', expenseType: 'Variavel', frequency: 'Unica', installment: null, installmentsTotal: null, value: 0, status: 'Aberta', paymentDate: '' },
     { id: 'pa-man-01', dueDate: today(20), supplier: 'Assistencia tecnica', description: 'Manutencao de equipamentos', expenseType: 'Variavel', frequency: 'Unica', installment: null, installmentsTotal: null, value: 0, status: 'Aberta', paymentDate: '' }
+  ],
+  production: [
+    { id: 'pr1', orderNumber: 'GF-0001', clientId: 'c1', productId: 'p1', quantity: 2, productionType: 'Sublimacao', status: 'Produzindo', entryDate: today(), deadline: today(2), responsible: 'Gabriel', notes: 'Pedido inicial gerado para acompanhamento.', sourceSaleId: 's1' }
+  ],
+  equipment: [
+    { id: 'eq1', name: 'Creality K1', status: 'Livre', currentJob: '', remainingTime: '', material: 'Filamento PLA', notes: '' },
+    { id: 'eq2', name: 'Creality Hi Combo', status: 'Livre', currentJob: '', remainingTime: '', material: 'Filamento PETG', notes: '' },
+    { id: 'eq3', name: 'Epson L3250', status: 'Livre', currentJob: '', remainingTime: '', material: 'Tinta sublimatica', notes: '' },
+    { id: 'eq4', name: 'Prensa de Canecas Mecolor', status: 'Livre', currentJob: '', remainingTime: '', material: 'Canecas', notes: '' }
   ],
   receivables: [
     { id: 're1', dueDate: today(5), clientId: 'c2', description: 'Pedido de brindes 3D', value: 520, status: 'Aberta', receivedDate: '' }
@@ -400,7 +449,7 @@ function openView(viewId) {
 
 function openForm(moduleId, recordId = null) {
   const schema = schemas[moduleId];
-  const record = recordId ? data[moduleId].find(item => item.id === recordId) : {};
+  const record = recordId ? data[moduleId].find(item => item.id === recordId) : getDefaultRecord(moduleId);
   if (moduleId === 'stock' && record && record.sourceSaleId) {
     alert('Este e um movimento automatico gerado por venda e nao pode ser alterado manualmente.');
     return;
@@ -411,13 +460,20 @@ function openForm(moduleId, recordId = null) {
   dialog.showModal();
 }
 
+function getDefaultRecord(moduleId) {
+  if (moduleId === 'production') {
+    return { orderNumber: nextProductionOrderNumber(), status: 'Novo', entryDate: today(), deadline: today(7), responsible: 'Gabriel' };
+  }
+  return {};
+}
+
 function renderField(field, value = '') {
   const required = field.required ? 'required' : '';
   const full = field.full ? ' full' : '';
   const safeValue = value ?? '';
 
   if (field.type === 'checkbox') {
-    const checked = value ? 'checked' : '';
+    const checked = (value === '' ? field.defaultValue : value) ? 'checked' : '';
     return `<div class="field checkbox-field${full}"><label><input name="${field.name}" type="checkbox" value="1" ${checked}> ${field.label}</label></div>`;
   }
 
@@ -466,10 +522,20 @@ function saveForm(event) {
   if (moduleId === 'products') {
     record.stock = Number(record.stock || 0);
     record.stockUsageQty = Number(record.stockUsageQty || 0);
+    record.active = record.active !== false;
+    if (record.profitMargin === null && record.cost && record.price) {
+      record.profitMargin = ((Number(record.price) - Number(record.cost)) / Number(record.cost)) * 100;
+    }
   }
 
   if (moduleId === 'quotes') {
     record.totalValue = Number(record.quantity || 0) * Number(record.unitValue || 0);
+  }
+
+  if (moduleId === 'production') {
+    record.status = record.status || 'Novo';
+    record.entryDate = record.entryDate || today();
+    record.orderNumber = record.orderNumber || nextProductionOrderNumber();
   }
 
   if (moduleId === 'payables') {
@@ -514,6 +580,10 @@ function applySideEffects(moduleId, record) {
   if (moduleId === 'receivables') {
     syncReceivableCash(record);
   }
+
+  if (moduleId === 'sales' && shouldCreateProductionFromSale(record)) {
+    createProductionFromSale(record);
+  }
 }
 
 function syncUpdatedRecord(moduleId, previousRecord, record) {
@@ -523,11 +593,14 @@ function syncUpdatedRecord(moduleId, previousRecord, record) {
   if (moduleId === 'stock') syncStockMovement(record, previousRecord);
   if (moduleId === 'payables') syncPayableCash(record);
   if (moduleId === 'receivables') syncReceivableCash(record);
+  if (moduleId === 'sales' && shouldCreateProductionFromSale(record)) createProductionFromSale(record);
 }
 
 function renderAll() {
   Object.keys(schemas).forEach(renderTable);
   renderStockOverview();
+  renderProductionKanban();
+  renderEquipmentBoard();
   renderPayablesSummary();
   renderDashboard();
   renderReports();
@@ -574,6 +647,9 @@ function renderTable(moduleId) {
   target.querySelectorAll('[data-convert-quote]').forEach(button => {
     button.addEventListener('click', () => convertQuoteToSale(button.dataset.convertQuote));
   });
+  target.querySelectorAll('[data-create-production]').forEach(button => {
+    button.addEventListener('click', () => createProductionFromSaleId(button.dataset.createProduction));
+  });
 }
 
 function renderRowActions(moduleId, row) {
@@ -592,6 +668,14 @@ function renderRowActions(moduleId, row) {
 
   if (moduleId === 'quotes' && row.convertedSaleId) {
     baseActions.unshift('<span class="status ok">Venda criada</span>');
+  }
+
+  if (moduleId === 'sales' && isSaleProduction(row) && !hasProductionForSale(row.id)) {
+    baseActions.unshift(`<button class="mini-button convert" type="button" title="Gerar producao" data-create-production="${row.id}">Produzir</button>`);
+  }
+
+  if (moduleId === 'production' && row.sourceSaleId) {
+    baseActions.unshift('<span class="status warn">Venda vinculada</span>');
   }
 
   return baseActions.join('');
@@ -649,6 +733,14 @@ function renderDashboard() {
     .reduce((total, item) => total + Number(item.value || 0), 0);
   const netProfitMonth = grossProfitMonth - commissionsMonth - expensesMonth;
   const lowStockItems = data.inventoryItems.filter(item => Number(item.minStock) > 0 && Number(item.quantity) <= Number(item.minStock));
+  const criticalStockItems = data.inventoryItems.filter(item => getStockLevel(item).className === 'critical-stock');
+  const productionToday = data.production.filter(order => !['Entregue', 'Cancelado'].includes(order.status) && order.entryDate === today()).length;
+  const lateProduction = data.production.filter(isProductionLate);
+  const freeEquipment = data.equipment.filter(item => item.status === 'Livre').length;
+  const nextDeadlines = data.production
+    .filter(order => !['Entregue', 'Cancelado'].includes(order.status) && order.deadline)
+    .sort((a, b) => String(a.deadline).localeCompare(String(b.deadline)))
+    .slice(0, 3);
   const averageTicket = monthlySales.length ? salesMonth / monthlySales.length : 0;
   const status = getDailyFinancialStatus(cashBalance, receivable, payable, goalProgress);
 
@@ -675,7 +767,11 @@ function renderDashboard() {
     { icon: '🧾', label: 'Contas a receber', value: money(receivable), detail: 'Valores em aberto', level: receivable > 0 ? 'status-warning' : 'status-good' },
     { icon: '💸', label: 'Contas a pagar', value: money(payable), detail: 'Compromissos abertos', level: payable > cashBalance && payable > 0 ? 'status-critical' : payable > 0 ? 'status-warning' : 'status-good' },
     { icon: '🎯', label: 'Meta mensal', value: `${Math.round(goalProgress)}%`, detail: money(MONTHLY_REVENUE_GOAL), level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical' },
-    { icon: '📊', label: 'Ticket médio', value: money(averageTicket), detail: 'Média por venda', level: averageTicket > 0 ? 'status-good' : 'status-warning' }
+    { icon: '📊', label: 'Ticket médio', value: money(averageTicket), detail: 'Média por venda', level: averageTicket > 0 ? 'status-good' : 'status-warning' },
+    { icon: 'OP', label: 'Produção hoje', value: String(productionToday), detail: 'Pedidos ativos iniciados hoje', level: productionToday ? 'status-warning' : 'status-good' },
+    { icon: 'AT', label: 'Pedidos atrasados', value: String(lateProduction.length), detail: 'Prazos vencidos', level: lateProduction.length ? 'status-critical' : 'status-good' },
+    { icon: 'EQ', label: 'Equipamentos livres', value: String(freeEquipment), detail: `${data.equipment.length} equipamento(s)`, level: freeEquipment ? 'status-good' : 'status-warning' },
+    { icon: 'CR', label: 'Estoque crítico', value: String(criticalStockItems.length), detail: 'Itens no mínimo ou abaixo', level: criticalStockItems.length ? 'status-critical' : 'status-good' }
   ].map(card => `
     <article class="executive-card ${card.level}">
       <div class="card-icon">${card.icon}</div>
@@ -689,7 +785,8 @@ function renderDashboard() {
     { title: 'Margem bruta estimada', detail: salesMonth > 0 ? `${Math.round((grossProfitMonth / salesMonth) * 100)}% sobre o vendido no mes` : 'Sem vendas no mes', level: grossProfitMonth >= 0 ? 'status-good' : 'status-critical' },
     { title: 'Capital comprometido', detail: `${money(payable)} em contas a pagar abertas`, level: payable > cashBalance && payable > 0 ? 'status-critical' : 'status-warning' },
     { title: 'Recebiveis pendentes', detail: `${money(receivable)} aguardando recebimento`, level: receivable > 0 ? 'status-warning' : 'status-good' },
-    { title: 'Operacao', detail: `${productionOrders} pedido(s) em producao e ${deliveredOrders} entregue(s)`, level: productionOrders > 0 ? 'status-warning' : 'status-good' }
+    { title: 'Operacao', detail: `${productionOrders} pedido(s) em producao e ${deliveredOrders} entregue(s)`, level: productionOrders > 0 ? 'status-warning' : 'status-good' },
+    { title: 'Próximos prazos', detail: nextDeadlines.length ? nextDeadlines.map(order => `${order.orderNumber} em ${formatDate(order.deadline)}`).join(' | ') : 'Nenhum prazo pendente', level: lateProduction.length ? 'status-critical' : 'status-good' }
   ].map(item => `
     <div class="stack-item ${item.level}">
       <strong>${escapeHtml(item.title)}</strong>
@@ -750,6 +847,7 @@ function getSmartDashboardAlerts(lowStockItems, goalProgress) {
     if (sale.status !== 'Em producao' || !sale.date) return false;
     return new Date(`${sale.date}T00:00:00`) < overdueLimit;
   });
+  const lateProductionOrders = data.production.filter(isProductionLate);
   const alerts = [];
 
   if (lowStockItems.length) {
@@ -776,10 +874,10 @@ function getSmartDashboardAlerts(lowStockItems, goalProgress) {
     });
   }
 
-  if (lateOrders.length) {
+  if (lateOrders.length || lateProductionOrders.length) {
     alerts.push({
       title: 'Pedidos atrasados',
-      detail: `${lateOrders.length} pedido(s) em producao ha mais de 7 dias.`,
+      detail: `${lateOrders.length + lateProductionOrders.length} pedido(s) precisam de revisao de prazo.`,
       level: 'status-critical'
     });
   }
@@ -1113,6 +1211,67 @@ function convertQuoteToSale(quoteId) {
   showToast('Orcamento transformado em venda.');
 }
 
+function createProductionFromSaleId(saleId) {
+  const sale = data.sales.find(item => item.id === saleId);
+  if (!sale) return;
+  createProductionFromSale(sale);
+  persist();
+  renderAll();
+  showToast('Pedido de producao criado.');
+}
+
+function createProductionFromSale(sale) {
+  if (!sale || hasProductionForSale(sale.id) || !isSaleProduction(sale)) return null;
+
+  const product = productById(sale.productId);
+  const productionOrder = {
+    id: makeId('production'),
+    orderNumber: nextProductionOrderNumber(),
+    clientId: sale.clientId,
+    productId: sale.productId,
+    quantity: Number(sale.quantity || 0),
+    productionType: inferProductionType(product),
+    status: 'Novo',
+    entryDate: sale.date || today(),
+    deadline: today(7),
+    responsible: 'Gabriel',
+    notes: sale.notes || '',
+    sourceSaleId: sale.id
+  };
+
+  data.production.push(productionOrder);
+  return productionOrder;
+}
+
+function shouldCreateProductionFromSale(sale) {
+  return isSaleProduction(sale) && sale.createProductionOrder && !hasProductionForSale(sale.id);
+}
+
+function isSaleProduction(sale) {
+  return normalizeText(sale.status) === normalizeText('Em producao');
+}
+
+function hasProductionForSale(saleId) {
+  return data.production.some(order => order.sourceSaleId === saleId);
+}
+
+function nextProductionOrderNumber() {
+  const nextNumber = data.production.length + 1;
+  return `GF-${String(nextNumber).padStart(4, '0')}`;
+}
+
+function inferProductionType(product) {
+  const category = normalizeText(product ? product.category : '');
+  if (category.includes('impressao 3d')) return 'Impressao 3D';
+  if (category.includes('caneca') || category.includes('sublim')) return 'Sublimacao';
+  return 'Outro';
+}
+
+function isProductionLate(order) {
+  if (!order.deadline || ['Pronto', 'Entregue', 'Cancelado'].includes(order.status)) return false;
+  return new Date(`${order.deadline}T00:00:00`) < new Date(`${today()}T00:00:00`);
+}
+
 function findOrCreateClientFromQuote(quote) {
   const normalizedPhone = normalizeText(quote.phone);
   const normalizedName = normalizeText(quote.clientName);
@@ -1137,20 +1296,145 @@ function findOrCreateClientFromQuote(quote) {
 function renderStockOverview() {
   const target = document.querySelector('#stockOverview');
   if (!target) return;
+  renderStockSummary();
 
   target.innerHTML = data.inventoryItems.map(item => {
-    const isLow = Number(item.minStock) > 0 && Number(item.quantity) <= Number(item.minStock);
+    const level = getStockLevel(item);
     return `
-      <article class="stock-card ${isLow ? 'low-stock' : ''}">
+      <article class="stock-card ${level.className}">
         <span>${escapeHtml(item.category || 'Estoque')}</span>
         <strong>${escapeHtml(item.name)}</strong>
         <div>
           <b>${formatQuantity(item)}</b>
-          <small>minimo: ${item.minStock} ${escapeHtml(item.unit || '')}</small>
+          <small>${escapeHtml(level.label)} | minimo: ${item.minStock || 0} | ideal: ${item.idealStock || 0} ${escapeHtml(item.unit || '')}</small>
         </div>
       </article>
     `;
   }).join('');
+}
+
+function renderStockSummary() {
+  const target = document.querySelector('#stockSummary');
+  if (!target) return;
+
+  const belowMinimum = data.inventoryItems.filter(item => Number(item.minStock) > 0 && Number(item.quantity) <= Number(item.minStock));
+  const stockValue = data.inventoryItems.reduce((total, item) => total + (Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
+  const monthlyEntries = data.stock.filter(item => item.type === 'Entrada' && isCurrentMonth(item.date)).reduce((total, item) => total + Number(item.quantity || 0), 0);
+  const monthlyExits = data.stock.filter(item => item.type === 'Saida' && isCurrentMonth(item.date)).reduce((total, item) => total + Number(item.quantity || 0), 0);
+
+  const cards = [
+    { label: 'Abaixo do minimo', value: String(belowMinimum.length), detail: 'Itens em alerta' },
+    { label: 'Valor estimado', value: money(stockValue), detail: 'Quantidade x custo unitario' },
+    { label: 'Entradas do mes', value: String(monthlyEntries), detail: 'Unidades movimentadas' },
+    { label: 'Saidas do mes', value: String(monthlyExits), detail: 'Unidades baixadas' }
+  ];
+
+  target.innerHTML = cards.map(card => `
+    <article class="summary-card">
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <p>${escapeHtml(card.detail)}</p>
+    </article>
+  `).join('');
+}
+
+function getStockLevel(item) {
+  const quantity = Number(item.quantity || 0);
+  const minimum = Number(item.minStock || 0);
+  const ideal = Number(item.idealStock || 0);
+  if (minimum > 0 && quantity <= minimum) return { label: 'Estoque critico', className: 'critical-stock' };
+  if (ideal > 0 && quantity < ideal) return { label: 'Estoque baixo', className: 'low-stock' };
+  return { label: 'Estoque ideal', className: 'ideal-stock' };
+}
+
+function renderProductionKanban() {
+  const target = document.querySelector('#productionKanban');
+  if (!target) return;
+
+  const statuses = ['Novo', 'Arte', 'Aprovado', 'Produzindo', 'Acabamento', 'Pronto', 'Entregue'];
+  target.innerHTML = statuses.map(status => {
+    const orders = data.production.filter(order => order.status === status);
+    return `
+      <section class="kanban-column">
+        <header><strong>${escapeHtml(status)}</strong><span>${orders.length}</span></header>
+        <div class="kanban-cards">
+          ${orders.length ? orders.map(renderProductionCard).join('') : '<div class="empty kanban-empty">Sem pedidos</div>'}
+        </div>
+      </section>
+    `;
+  }).join('');
+
+  target.querySelectorAll('[data-production-status]').forEach(select => {
+    select.addEventListener('change', event => updateProductionStatus(event.target.dataset.productionStatus, event.target.value));
+  });
+}
+
+function renderProductionCard(order) {
+  const late = isProductionLate(order);
+  return `
+    <article class="production-card ${late ? 'late' : ''}">
+      <div class="production-card-head">
+        <strong>${escapeHtml(order.orderNumber || 'Sem numero')}</strong>
+        ${late ? '<span class="status bad">Atrasado</span>' : '<span class="status ok">No prazo</span>'}
+      </div>
+      <span>${escapeHtml(nameById('clients', order.clientId))}</span>
+      <b>${escapeHtml(nameById('products', order.productId))}</b>
+      <small>${Number(order.quantity || 0)} un | prazo ${formatDate(order.deadline)}</small>
+      <select data-production-status="${escapeHtml(order.id)}" aria-label="Alterar status">
+        ${['Novo', 'Arte', 'Aprovado', 'Produzindo', 'Acabamento', 'Pronto', 'Entregue', 'Cancelado'].map(status => `<option value="${status}" ${status === order.status ? 'selected' : ''}>${status}</option>`).join('')}
+      </select>
+    </article>
+  `;
+}
+
+function updateProductionStatus(orderId, status) {
+  data.production = data.production.map(order => order.id === orderId ? { ...order, status } : order);
+  persist();
+  renderAll();
+  showToast('Status de producao atualizado.');
+}
+
+function renderEquipmentBoard() {
+  const target = document.querySelector('#equipmentBoard');
+  if (!target) return;
+
+  target.innerHTML = data.equipment.map(equipment => `
+    <article class="equipment-card ${equipmentStatusClass(equipment.status)}">
+      <div class="equipment-head">
+        <strong>${escapeHtml(equipment.name)}</strong>
+        <select data-equipment-status="${escapeHtml(equipment.id)}" aria-label="Status do equipamento">
+          ${['Livre', 'Produzindo', 'Manutencao', 'Parado'].map(status => `<option value="${status}" ${status === equipment.status ? 'selected' : ''}>${status}</option>`).join('')}
+        </select>
+      </div>
+      <label>Trabalho atual <input data-equipment-field="${escapeHtml(equipment.id)}:currentJob" value="${escapeHtml(equipment.currentJob || '')}"></label>
+      <label>Tempo restante <input data-equipment-field="${escapeHtml(equipment.id)}:remainingTime" value="${escapeHtml(equipment.remainingTime || '')}"></label>
+      <label>Material usado <input data-equipment-field="${escapeHtml(equipment.id)}:material" value="${escapeHtml(equipment.material || '')}"></label>
+      <label>Observacoes <textarea data-equipment-field="${escapeHtml(equipment.id)}:notes">${escapeHtml(equipment.notes || '')}</textarea></label>
+    </article>
+  `).join('');
+
+  target.querySelectorAll('[data-equipment-status]').forEach(select => {
+    select.addEventListener('change', event => updateEquipment(event.target.dataset.equipmentStatus, 'status', event.target.value));
+  });
+  target.querySelectorAll('[data-equipment-field]').forEach(input => {
+    input.addEventListener('change', event => {
+      const [id, field] = event.target.dataset.equipmentField.split(':');
+      updateEquipment(id, field, event.target.value);
+    });
+  });
+}
+
+function updateEquipment(equipmentId, field, value) {
+  data.equipment = data.equipment.map(equipment => equipment.id === equipmentId ? { ...equipment, [field]: value } : equipment);
+  persist();
+  renderEquipmentBoard();
+  renderDashboard();
+}
+
+function equipmentStatusClass(status) {
+  if (status === 'Livre') return 'status-good';
+  if (status === 'Produzindo') return 'status-warning';
+  return 'status-critical';
 }
 
 function renderPayablesSummary() {
@@ -1180,26 +1464,35 @@ function renderPayablesSummary() {
 }
 
 function formatCell(column, value, row) {
+  if (column === 'productPhoto') return formatProductPhoto(row);
   if (column === 'clientId') return escapeHtml(nameById('clients', value));
   if (column === 'productId') return escapeHtml(nameById('products', value));
   if (column === 'inventoryItemId') return escapeHtml(nameById('inventoryItems', value));
   if (column === 'originInfo') return row.sourceSaleId ? '<span class="status warn">Movimento automatico</span>' : '<span class="status">Manual</span>';
+  if (column === 'saleLink') return row.sourceSaleId ? `<span class="status warn">${escapeHtml(row.sourceSaleId)}</span>` : '<span class="status">Manual</span>';
   if (column === 'estimatedProfit') return formatEstimatedProfit(row);
   if (column === 'saleProfit') return formatSaleProfit(row);
   if (column === 'biancaCommission') return value ? '<span class="status warn">Sim - 5%</span>' : '<span class="status">Nao</span>';
+  if (column === 'active') return value !== false ? '<span class="status ok">Ativo</span>' : '<span class="status bad">Inativo</span>';
   if (column === 'installmentInfo') return formatInstallmentInfo(row);
   if (['value', 'price', 'cost', 'unitValue', 'totalValue'].includes(column)) return formatMoneyOrVariable(value);
-  if (['date', 'dueDate', 'deadline', 'paymentDate', 'receivedDate'].includes(column)) return formatDate(value);
+  if (column === 'profitMargin') return value === null || value === undefined || value === '' ? '<span class="status warn">Variavel</span>' : `${Number(value || 0).toLocaleString('pt-BR')}%`;
+  if (['date', 'dueDate', 'deadline', 'paymentDate', 'receivedDate', 'entryDate'].includes(column)) return formatDate(value);
   if (column === 'status') return `<span class="status ${statusClass(value)}">${escapeHtml(value)}</span>`;
   if (column === 'type') return `<span class="status ${value === 'Entrada' ? 'ok' : 'bad'}">${escapeHtml(value)}</span>`;
   return escapeHtml(value ?? '');
 }
 
 function statusClass(value) {
-  if (['Recebido', 'Pago', 'Paga', 'Recebida', 'Entregue', 'Aprovado'].includes(value)) return 'ok';
-  if (['A receber', 'Pendente', 'Aberta', 'Em producao'].includes(value)) return 'warn';
-  if (['Recusado'].includes(value)) return 'bad';
+  if (['Recebido', 'Pago', 'Paga', 'Recebida', 'Entregue', 'Aprovado', 'Pronto', 'Livre'].includes(value)) return 'ok';
+  if (['A receber', 'Pendente', 'Aberta', 'Em producao', 'Novo', 'Arte', 'Produzindo', 'Acabamento'].includes(value)) return 'warn';
+  if (['Recusado', 'Cancelado', 'Parado', 'Manutencao'].includes(value)) return 'bad';
   return '';
+}
+
+function formatProductPhoto(product) {
+  if (!product.photoUrl) return '<span class="product-photo-placeholder">GF</span>';
+  return `<img class="product-photo" src="${escapeHtml(product.photoUrl)}" alt="${escapeHtml(product.name || 'Produto')}">`;
 }
 
 function nameById(collection, id) {
@@ -1463,6 +1756,14 @@ async function offerLocalMigration() {
 }
 
 function migrateData(loadedData) {
+  if (!Array.isArray(loadedData.production)) {
+    loadedData.production = [];
+  }
+
+  if (!Array.isArray(loadedData.equipment)) {
+    loadedData.equipment = [];
+  }
+
   if (!Array.isArray(loadedData.quotes)) {
     loadedData.quotes = [];
   }
@@ -1489,12 +1790,29 @@ function migrateData(loadedData) {
     loadedData.inventoryItems.push(itemToAdd);
   });
 
+  sampleData.equipment.forEach(initialEquipment => {
+    const alreadyExists = loadedData.equipment.some(equipment => equipment.name === initialEquipment.name);
+    if (alreadyExists) return;
+    loadedData.equipment.push(structuredClone(initialEquipment));
+  });
+
+  loadedData.equipment = loadedData.equipment.map(equipment => ({
+    id: equipment.id || makeId('equipment'),
+    name: equipment.name || 'Equipamento',
+    status: equipment.status || 'Livre',
+    currentJob: equipment.currentJob || '',
+    remainingTime: equipment.remainingTime || '',
+    material: equipment.material || '',
+    notes: equipment.notes || ''
+  }));
+
   loadedData.sales = loadedData.sales.map(sale => {
     const nextSale = { ...sale };
     if (!nextSale.paymentMethod) nextSale.paymentMethod = 'Pix';
     if (nextSale.status === 'Pago') nextSale.status = 'Recebido';
     if (nextSale.status === 'Pendente') nextSale.status = 'A receber';
     if (nextSale.biancaCommission === undefined) nextSale.biancaCommission = false;
+    if (nextSale.createProductionOrder === undefined) nextSale.createProductionOrder = false;
     return nextSale;
   });
 
@@ -1550,6 +1868,13 @@ function migrateData(loadedData) {
 
   loadedData.products = loadedData.products.map(product => {
     const nextProduct = { ...product };
+    nextProduct.photoUrl = nextProduct.photoUrl || '';
+    nextProduct.supplier = nextProduct.supplier || '';
+    nextProduct.internalCode = nextProduct.internalCode || '';
+    nextProduct.idealStock = nextProduct.idealStock ?? 0;
+    nextProduct.profitMargin = nextProduct.profitMargin ?? calculateProductMargin(nextProduct);
+    nextProduct.avgProductionTime = nextProduct.avgProductionTime || '';
+    nextProduct.active = nextProduct.active !== false;
     if (nextProduct.name === 'Caneca branca personalizada') {
       nextProduct.inventoryItemId = findInventoryItemIdByName(loadedData, 'Canecas brancas') || nextProduct.inventoryItemId;
       nextProduct.stockUsageQty = Number(nextProduct.stockUsageQty || 1);
@@ -1565,6 +1890,24 @@ function migrateData(loadedData) {
     return nextProduct;
   });
 
+  loadedData.inventoryItems = loadedData.inventoryItems.map(item => ({
+    ...item,
+    idealStock: item.idealStock ?? Math.max(Number(item.minStock || 0) * 2, Number(item.quantity || 0)),
+    unitCost: item.unitCost ?? findInventoryUnitCost(loadedData, item.id)
+  }));
+
+  loadedData.production = loadedData.production.map((order, index) => ({
+    ...order,
+    orderNumber: order.orderNumber || `GF-${String(index + 1).padStart(4, '0')}`,
+    productionType: order.productionType || inferProductionType(loadedData.products.find(product => product.id === order.productId)),
+    status: order.status || 'Novo',
+    entryDate: order.entryDate || today(),
+    deadline: order.deadline || today(7),
+    responsible: order.responsible || '',
+    notes: order.notes || '',
+    sourceSaleId: order.sourceSaleId || ''
+  }));
+
   loadedData.stock = loadedData.stock.map(movement => {
     if (movement.inventoryItemId) return movement;
     const product = loadedData.products.find(item => item.id === movement.productId);
@@ -1575,6 +1918,16 @@ function migrateData(loadedData) {
   }).filter(movement => movement.inventoryItemId);
 
   return loadedData;
+}
+
+function calculateProductMargin(product) {
+  if (!product || !Number(product.cost) || product.price === null || product.price === undefined || product.price === '') return null;
+  return ((Number(product.price || 0) - Number(product.cost || 0)) / Number(product.cost || 1)) * 100;
+}
+
+function findInventoryUnitCost(targetData, inventoryItemId) {
+  const linkedProduct = targetData.products.find(product => product.inventoryItemId === inventoryItemId && product.cost !== null && product.cost !== undefined && product.cost !== '');
+  return linkedProduct ? Number(linkedProduct.cost || 0) : 0;
 }
 
 function findInventoryItemIdByName(targetData, name) {
