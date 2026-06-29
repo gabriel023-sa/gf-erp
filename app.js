@@ -18,7 +18,8 @@ const modules = [
   { id: 'payables', title: 'Contas a Pagar', icon: '08' },
   { id: 'receivables', title: 'Contas a Receber', icon: '09' },
   { id: 'reports', title: 'Relatorios', icon: '10' },
-  { id: 'production', title: 'Producao', icon: '11' }
+  { id: 'production', title: 'Producao', icon: '11' },
+  { id: 'aiCfo', title: 'IA CFO', icon: '12' }
 ];
 
 const schemas = {
@@ -289,6 +290,7 @@ let deferredInstallPrompt = null;
 let dashboardCharts = {};
 let waitingServiceWorker = null;
 let refreshingForUpdate = false;
+let aiCfoMessages = [];
 
 const menu = document.querySelector('#menu');
 const pageTitle = document.querySelector('#pageTitle');
@@ -302,6 +304,11 @@ const loginMessage = document.querySelector('#loginMessage');
 const syncStatus = document.querySelector('#syncStatus');
 const updateBanner = document.querySelector('#updateBanner');
 const refreshAppButton = document.querySelector('#refreshApp');
+const aiCfoForm = document.querySelector('#aiCfoForm');
+const aiCfoQuestion = document.querySelector('#aiCfoQuestion');
+const aiCfoMessagesContainer = document.querySelector('#aiCfoMessages');
+const analyzeCompanyButton = document.querySelector('#analyzeCompany');
+const aiQuickQuestions = document.querySelector('#aiQuickQuestions');
 
 init();
 
@@ -310,6 +317,7 @@ async function init() {
   renderMenu();
   bindActions();
   bindAuthActions();
+  bindAiCfoActions();
   registerServiceWorker();
   setupInstallPrompt();
 
@@ -406,6 +414,23 @@ function bindAuthActions() {
     } catch {
       loginMessage.textContent = 'E-mail ou senha invalidos.';
     }
+  });
+}
+
+function bindAiCfoActions() {
+  if (!aiCfoForm) return;
+
+  aiCfoForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const question = aiCfoQuestion.value.trim();
+    if (!question) return;
+    askAiCfo(question);
+    aiCfoQuestion.value = '';
+  });
+
+  analyzeCompanyButton.addEventListener('click', () => {
+    addAiCfoMessage('user', 'Analisar empresa');
+    addAiCfoMessage('assistant', generateCompanyAnalysis());
   });
 }
 
@@ -604,6 +629,7 @@ function renderAll() {
   renderPayablesSummary();
   renderDashboard();
   renderReports();
+  renderAiCfo();
 }
 
 function renderTable(moduleId) {
@@ -1100,6 +1126,252 @@ function rankClientsBySales(sales) {
   });
 
   return [...ranking.values()].sort((a, b) => b.total - a.total || b.count - a.count);
+}
+
+function renderAiCfo() {
+  renderAiQuickQuestions();
+  renderAiCfoAlerts();
+  if (!aiCfoMessages.length) {
+    aiCfoMessages = [{
+      role: 'assistant',
+      content: 'Olá, Gabriel. Sou a IA CFO da GF ERP. Posso analisar vendas, caixa, estoque, produção, equipamentos, clientes e metas usando os dados atuais do sistema.'
+    }];
+  }
+  renderAiCfoMessages();
+}
+
+function renderAiQuickQuestions() {
+  if (!aiQuickQuestions || aiQuickQuestions.dataset.ready === 'true') return;
+
+  const questions = [
+    'Quanto vendi hoje?',
+    'Quanto vendi este mês?',
+    'Quanto falta para bater a meta?',
+    'Quanto tenho em caixa?',
+    'Quanto tenho para receber?',
+    'Quanto tenho para pagar?',
+    'Qual produto mais vende?',
+    'Qual cliente mais compra?',
+    'Quais pedidos estão atrasados?',
+    'Quais produtos estão abaixo do estoque mínimo?'
+  ];
+
+  aiQuickQuestions.innerHTML = questions.map(question => `<button class="quick-question" type="button" data-ai-question="${escapeHtml(question)}">${escapeHtml(question)}</button>`).join('');
+  aiQuickQuestions.querySelectorAll('[data-ai-question]').forEach(button => {
+    button.addEventListener('click', () => askAiCfo(button.dataset.aiQuestion));
+  });
+  aiQuickQuestions.dataset.ready = 'true';
+}
+
+function renderAiCfoMessages() {
+  if (!aiCfoMessagesContainer) return;
+  aiCfoMessagesContainer.innerHTML = aiCfoMessages.map(message => `
+    <article class="ai-message ${message.role}">
+      <div class="ai-message-avatar">${message.role === 'assistant' ? 'CFO' : 'Você'}</div>
+      <div class="ai-message-bubble">${formatAiResponse(message.content)}</div>
+    </article>
+  `).join('');
+  aiCfoMessagesContainer.scrollTop = aiCfoMessagesContainer.scrollHeight;
+}
+
+function askAiCfo(question) {
+  addAiCfoMessage('user', question);
+  addAiCfoMessage('assistant', answerAiCfoQuestion(question));
+}
+
+function addAiCfoMessage(role, content) {
+  aiCfoMessages.push({ role, content });
+  renderAiCfoMessages();
+}
+
+function answerAiCfoQuestion(question) {
+  const normalized = normalizeText(question);
+  const context = buildAiCfoContext();
+
+  if (includesAny(normalized, ['vendi hoje', 'vendas hoje', 'faturei hoje'])) {
+    return `Você vendeu ${money(context.salesToday)} hoje. Foram ${context.salesTodayCount} venda(s) registradas.`;
+  }
+  if (includesAny(normalized, ['vendi este mes', 'vendas este mes', 'faturamento do mes', 'faturei este mes'])) {
+    return `Você vendeu ${money(context.salesMonth)} este mês. A meta mensal é ${money(MONTHLY_REVENUE_GOAL)}.`;
+  }
+  if (includesAny(normalized, ['falta para bater', 'falta para atingir', 'meta'])) {
+    return context.goalRemaining > 0
+      ? `Faltam ${money(context.goalRemaining)} para atingir a meta mensal. O progresso atual é de ${Math.round(context.goalProgress)}%.`
+      : `Meta mensal atingida. Você já passou da meta em ${money(context.salesMonth - MONTHLY_REVENUE_GOAL)}.`;
+  }
+  if (includesAny(normalized, ['caixa', 'saldo'])) return `Seu saldo em caixa é ${money(context.cashBalance)}.`;
+  if (includesAny(normalized, ['para receber', 'a receber', 'receber'])) return `Você tem ${money(context.receivable)} em contas a receber abertas.`;
+  if (includesAny(normalized, ['para pagar', 'a pagar', 'pagar'])) return `Você tem ${money(context.payable)} em contas a pagar abertas.`;
+  if (includesAny(normalized, ['produto mais vende', 'mais vendido'])) {
+    return context.topProduct ? `O produto mais vendido é ${context.topProduct.name}, com ${context.topProduct.quantity} unidade(s) e ${money(context.topProduct.total)} em vendas.` : 'Ainda não há vendas suficientes para identificar o produto mais vendido.';
+  }
+  if (includesAny(normalized, ['cliente mais compra', 'cliente que mais compra'])) {
+    return context.topClient ? `O cliente que mais compra é ${context.topClient.name}, com ${context.topClient.count} compra(s) e ${money(context.topClient.total)} em faturamento.` : 'Ainda não há vendas suficientes para identificar o cliente que mais compra.';
+  }
+  if (includesAny(normalized, ['maior lucro', 'mais lucrativo', 'produto da maior lucro'])) {
+    return context.mostProfitableProduct ? `O produto com maior lucro estimado é ${context.mostProfitableProduct.name}, com lucro unitário estimado de ${money(context.mostProfitableProduct.profit)}.` : 'Não há produtos com custo e preço informados suficientes para calcular o maior lucro.';
+  }
+  if (includesAny(normalized, ['canecas vendi', 'quantas canecas'])) return `Você vendeu ${context.mugsSoldMonth} caneca(s) este mês.`;
+  if (includesAny(normalized, ['gastei em compras', 'compras'])) return `Você registrou ${money(context.purchaseExpensesMonth)} em compras/despesas de estoque neste mês.`;
+  if (includesAny(normalized, ['equipamento esta produzindo', 'equipamentos produzindo', 'produzindo'])) {
+    return context.equipmentProducing.length
+      ? `Equipamentos produzindo: ${context.equipmentProducing.map(item => `${item.name}${item.currentJob ? ` (${item.currentJob})` : ''}`).join(', ')}.`
+      : 'Nenhum equipamento está marcado como Produzindo agora.';
+  }
+  if (includesAny(normalized, ['pedidos atrasados', 'atrasados'])) {
+    return context.lateOrders.length
+      ? `Há ${context.lateOrders.length} pedido(s) atrasado(s): ${context.lateOrders.map(order => `${order.orderNumber} - ${nameById('clients', order.clientId)}`).join(', ')}.`
+      : 'Não há pedidos de produção atrasados no momento.';
+  }
+  if (includesAny(normalized, ['tenho de estoque', 'valor de estoque', 'estoque'])) {
+    if (includesAny(normalized, ['abaixo', 'minimo', 'critico'])) {
+      return context.criticalStock.length
+        ? `Produtos/itens abaixo do mínimo: ${context.criticalStock.map(item => `${item.name} (${formatQuantity(item)})`).join(', ')}.`
+        : 'Nenhum item está abaixo do estoque mínimo.';
+    }
+    return `O valor total estimado em estoque é ${money(context.stockValue)}. Existem ${context.criticalStock.length} item(ns) em nível crítico.`;
+  }
+
+  return 'Entendi sua pergunta. Hoje consigo analisar vendas, caixa, contas, estoque, produção, equipamentos, clientes, produtos e meta. Experimente perguntar “Quanto vendi este mês?” ou clique em “Analisar empresa”.';
+}
+
+function buildAiCfoContext() {
+  const todaySales = data.sales.filter(sale => sale.date === today());
+  const monthlySales = data.sales.filter(sale => isCurrentMonth(sale.date));
+  const salesMonth = sumValues(monthlySales);
+  const grossProfitMonth = monthlySales.reduce((total, sale) => {
+    const profit = calculateSaleProfit(sale);
+    return profit === null ? total : total + profit;
+  }, 0);
+  const payable = data.payables.filter(item => item.status !== 'Paga').reduce((total, item) => total + Number(item.value || 0), 0);
+  const receivable = data.receivables.filter(item => item.status !== 'Recebida').reduce((total, item) => total + Number(item.value || 0), 0);
+  const cashBalance = sumCash('Entrada') - sumCash('Saida');
+  const topProducts = rankProductsBySales(data.sales);
+  const topClients = rankClientsBySales(data.sales);
+  const criticalStock = data.inventoryItems.filter(item => getStockLevel(item).className === 'critical-stock');
+  const stockValue = data.inventoryItems.reduce((total, item) => total + (Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
+  const lateOrders = data.production.filter(isProductionLate);
+  const equipmentProducing = data.equipment.filter(item => item.status === 'Produzindo');
+  const purchaseExpensesMonth = data.payables
+    .filter(item => isCurrentMonth(item.dueDate) && normalizeText(`${item.description} ${item.supplier}`).includes('estoque'))
+    .reduce((total, item) => total + Number(item.value || 0), 0);
+
+  return {
+    salesToday: sumValues(todaySales),
+    salesTodayCount: todaySales.length,
+    salesMonth,
+    grossProfitMonth,
+    netProfitMonth: grossProfitMonth
+      - monthlySales.reduce((total, sale) => total + calculateSaleCommission(sale), 0)
+      - data.payables.filter(item => isCurrentMonth(item.dueDate)).reduce((total, item) => total + Number(item.value || 0), 0),
+    goalProgress: Math.min((salesMonth / MONTHLY_REVENUE_GOAL) * 100, 100),
+    goalRemaining: Math.max(MONTHLY_REVENUE_GOAL - salesMonth, 0),
+    payable,
+    receivable,
+    cashBalance,
+    topProduct: topProducts[0],
+    topClient: topClients[0],
+    mostProfitableProduct: getMostProfitableProduct(),
+    mugsSoldMonth: monthlySales
+      .filter(sale => normalizeText(nameById('products', sale.productId)).includes('caneca'))
+      .reduce((total, sale) => total + Number(sale.quantity || 0), 0),
+    purchaseExpensesMonth,
+    criticalStock,
+    stockValue,
+    lateOrders,
+    equipmentProducing,
+    duePayables: getDuePayables(7),
+    overdueReceivables: getOverdueReceivables(),
+    stoppedEquipment: data.equipment.filter(item => ['Parado', 'Manutencao'].includes(item.status))
+  };
+}
+
+function generateCompanyAnalysis() {
+  const context = buildAiCfoContext();
+  const suggestions = [];
+  if (context.goalRemaining > 0) suggestions.push(`Focar em pedidos de maior ticket para cobrir os ${money(context.goalRemaining)} restantes da meta.`);
+  if (context.criticalStock.length) suggestions.push('Priorizar reposição dos itens críticos para evitar perda de venda.');
+  if (context.receivable > 0) suggestions.push('Revisar contas a receber abertas e cobrar vencidas primeiro.');
+  if (context.lateOrders.length) suggestions.push('Reorganizar fila de produção para eliminar pedidos atrasados.');
+  if (!suggestions.length) suggestions.push('Manter rotina de acompanhamento diário de caixa, produção e estoque.');
+
+  return [
+    'Relatório executivo da IA CFO',
+    `Caixa: ${money(context.cashBalance)}.`,
+    `Faturamento do mês: ${money(context.salesMonth)} (${Math.round(context.goalProgress)}% da meta).`,
+    `Lucro líquido estimado do mês: ${money(context.netProfitMonth)}.`,
+    `Contas a pagar abertas: ${money(context.payable)}.`,
+    `Contas a receber abertas: ${money(context.receivable)}.`,
+    `Estoque: ${money(context.stockValue)} estimados; ${context.criticalStock.length} item(ns) críticos.`,
+    `Produção: ${context.lateOrders.length} pedido(s) atrasado(s).`,
+    `Equipamentos: ${context.equipmentProducing.length} produzindo; ${context.stoppedEquipment.length} parado/manutenção.`,
+    `Alertas financeiros: ${context.duePayables.length} conta(s) vencendo em 7 dias e ${context.overdueReceivables.length} conta(s) inadimplente(s).`,
+    'Sugestões de melhoria:',
+    ...suggestions.map(item => `- ${item}`)
+  ].join('\n');
+}
+
+function renderAiCfoAlerts() {
+  const target = document.querySelector('#aiCfoAlerts');
+  if (!target) return;
+  const context = buildAiCfoContext();
+  const alerts = [];
+
+  if (context.criticalStock.length) alerts.push({ title: 'Estoque crítico', detail: `${context.criticalStock.length} item(ns) abaixo ou no mínimo.`, level: 'status-critical' });
+  if (context.duePayables.length) alerts.push({ title: 'Contas vencendo', detail: `${context.duePayables.length} conta(s) vencem nos próximos 7 dias.`, level: 'status-warning' });
+  if (context.goalProgress < getExpectedGoalProgress()) alerts.push({ title: 'Meta distante', detail: `${Math.round(context.goalProgress)}% realizado contra ${Math.round(getExpectedGoalProgress())}% esperado.`, level: 'status-critical' });
+  if (context.overdueReceivables.length) alerts.push({ title: 'Clientes inadimplentes', detail: `${context.overdueReceivables.length} conta(s) a receber vencida(s).`, level: 'status-critical' });
+  if (context.lateOrders.length) alerts.push({ title: 'Pedidos atrasados', detail: `${context.lateOrders.length} pedido(s) fora do prazo.`, level: 'status-critical' });
+  if (context.stoppedEquipment.length) alerts.push({ title: 'Equipamentos parados', detail: context.stoppedEquipment.map(item => item.name).join(', '), level: 'status-critical' });
+
+  target.innerHTML = alerts.length
+    ? alerts.map(alert => `<div class="stack-item ${alert.level}"><strong>${escapeHtml(alert.title)}</strong><span>${escapeHtml(alert.detail)}</span></div>`).join('')
+    : '<div class="empty">Nenhum alerta crítico no momento.</div>';
+}
+
+function getMostProfitableProduct() {
+  return data.products
+    .filter(product => product.cost !== null && product.cost !== undefined && product.cost !== '' && product.price !== null && product.price !== undefined && product.price !== '')
+    .map(product => ({ name: product.name, profit: Number(product.price || 0) - Number(product.cost || 0) }))
+    .sort((a, b) => b.profit - a.profit)[0] || null;
+}
+
+function getDuePayables(days) {
+  const start = new Date(`${today()}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + days);
+  return data.payables.filter(item => {
+    if (item.status === 'Paga' || !item.dueDate) return false;
+    const dueDate = new Date(`${item.dueDate}T00:00:00`);
+    return dueDate >= start && dueDate <= end;
+  });
+}
+
+function getOverdueReceivables() {
+  const now = new Date(`${today()}T00:00:00`);
+  return data.receivables.filter(item => item.status !== 'Recebida' && item.dueDate && new Date(`${item.dueDate}T00:00:00`) < now);
+}
+
+function includesAny(text, terms) {
+  return terms.some(term => text.includes(normalizeText(term)));
+}
+
+function formatAiResponse(content) {
+  const lines = escapeHtml(content).split('\n');
+  let inList = false;
+  return lines.map(line => {
+    if (line.startsWith('- ')) {
+      const item = `<li>${line.slice(2)}</li>`;
+      if (!inList) {
+        inList = true;
+        return `<ul>${item}`;
+      }
+      return item;
+    }
+    const close = inList ? '</ul>' : '';
+    inList = false;
+    return `${close}<p>${line}</p>`;
+  }).join('') + (inList ? '</ul>' : '');
 }
 
 function exportMonthlyReportPdf() {
@@ -1705,7 +1977,11 @@ function isSaleReceivable(status) {
 }
 
 function normalizeText(value) {
-  return String(value || '').trim().toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
 }
 
 function sumCash(type) {

@@ -313,6 +313,38 @@
         </div>
       </div>
     </section>
+
+    <section id="aiCfo" class="view ai-cfo-view" aria-labelledby="ai-cfo-title">
+      <div class="ai-cfo-layout">
+        <section class="panel ai-cfo-chat-panel">
+          <div class="panel-head">
+            <div class="ai-cfo-title">
+              <div class="cfo-avatar">CFO</div>
+              <div>
+                <h2 id="ai-cfo-title">IA CFO</h2>
+                <p class="panel-note">Análises financeiras e operacionais com os dados reais do GF ERP.</p>
+              </div>
+            </div>
+            <button id="analyzeCompany" class="primary-button" type="button">Analisar empresa</button>
+          </div>
+          <div id="aiCfoMessages" class="ai-chat-messages" aria-live="polite"></div>
+          <form id="aiCfoForm" class="ai-chat-form">
+            <input id="aiCfoQuestion" type="text" placeholder="Pergunte: Quanto vendi este mês?" autocomplete="off" required>
+            <button class="primary-button" type="submit">Enviar</button>
+          </form>
+        </section>
+        <aside class="panel ai-cfo-side-panel">
+          <div class="panel-head">
+            <h2>Perguntas rápidas</h2>
+          </div>
+          <div id="aiQuickQuestions" class="quick-question-grid"></div>
+          <div class="ai-cfo-alerts">
+            <h3>Alertas automáticos</h3>
+            <div id="aiCfoAlerts" class="stack-list"></div>
+          </div>
+        </aside>
+      </div>
+    </section>
   </main>
 
   <dialog id="entryDialog">

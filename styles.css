@@ -975,6 +975,152 @@ h2 {
   font-weight: 900;
 }
 
+.ai-cfo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, .6fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.ai-cfo-chat-panel {
+  min-height: 680px;
+  display: grid;
+  grid-template-rows: auto minmax(420px, 1fr) auto;
+}
+
+.ai-cfo-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cfo-avatar,
+.ai-message-avatar {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--nav);
+  font-weight: 900;
+}
+
+.cfo-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+}
+
+.ai-chat-messages {
+  min-height: 420px;
+  max-height: 560px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7f9fb;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.ai-message {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.ai-message.user {
+  grid-template-columns: minmax(0, 1fr) 46px;
+}
+
+.ai-message.user .ai-message-avatar {
+  grid-column: 2;
+}
+
+.ai-message.user .ai-message-bubble {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  color: #fff;
+  background: var(--accent-strong);
+}
+
+.ai-message-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.ai-message-bubble {
+  width: fit-content;
+  max-width: min(760px, 100%);
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(28, 32, 36, .06);
+}
+
+.ai-message-bubble p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.ai-message-bubble p:last-child,
+.ai-message-bubble ul:last-child {
+  margin-bottom: 0;
+}
+
+.ai-message-bubble ul {
+  margin: 6px 0 10px;
+  padding-left: 20px;
+}
+
+.ai-chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ai-chat-form input {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.quick-question-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.quick-question {
+  min-height: 40px;
+  padding: 9px 10px;
+  color: var(--ink);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  transition: .18s ease;
+}
+
+.quick-question:hover {
+  border-color: rgba(13, 148, 136, .45);
+  background: #f0fdfa;
+}
+
+.ai-cfo-alerts {
+  margin-top: 18px;
+}
+
+.ai-cfo-alerts h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1279,6 +1425,7 @@ dialog::backdrop {
   .executive-metrics,
   .charts-grid,
   .equipment-grid,
+  .ai-cfo-layout,
   .report-grid,
   .report-sections,
   .stock-grid,
@@ -1317,6 +1464,7 @@ dialog::backdrop {
   .executive-metrics,
   .charts-grid,
   .equipment-grid,
+  .ai-cfo-layout,
   .report-grid,
   .report-sections,
   .stock-grid,
@@ -1338,6 +1486,29 @@ dialog::backdrop {
   .kanban-board {
     grid-template-columns: 1fr;
     overflow-x: visible;
+  }
+
+  .ai-cfo-chat-panel {
+    min-height: auto;
+    grid-template-rows: auto minmax(360px, 1fr) auto;
+  }
+
+  .ai-chat-form {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-message,
+  .ai-message.user {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .ai-message.user .ai-message-avatar {
+    grid-column: 1;
+  }
+
+  .ai-message.user .ai-message-bubble {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .update-banner {
