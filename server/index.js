@@ -119,6 +119,7 @@ app.get('/', serveIndex);
 app.get('/index.html', serveIndex);
 app.get('/vendor/chart.umd.js', (request, response) => {
   response.type('application/javascript');
+  response.setHeader('Cache-Control', 'no-cache');
   response.sendFile(path.resolve(publicDir, 'node_modules', 'chart.js', 'dist', 'chart.umd.js'));
 });
 
@@ -130,7 +131,7 @@ app.use(express.static(publicDir, {
     if (filePath.endsWith('manifest.webmanifest')) {
       response.type('application/manifest+json');
     }
-    if (filePath.endsWith('service-worker.js')) {
+    if (isAppShellAsset(filePath)) {
       response.setHeader('Cache-Control', 'no-cache');
     }
   }
@@ -458,11 +459,22 @@ function asyncHandler(handler) {
 }
 
 function serveIndex(request, response) {
+  response.setHeader('Cache-Control', 'no-cache');
   response.sendFile(path.join(publicDir, 'index.html'));
 }
 
 function isStaticAssetRequest(requestPath) {
   return path.extname(requestPath) !== '';
+}
+
+function isAppShellAsset(filePath) {
+  return [
+    'index.html',
+    'app.js',
+    'styles.css',
+    'manifest.webmanifest',
+    'service-worker.js'
+  ].some(fileName => filePath.endsWith(fileName));
 }
 
 function makeId(prefix) {

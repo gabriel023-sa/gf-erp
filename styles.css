@@ -998,6 +998,36 @@ dialog::backdrop {
   transform: translateY(0);
 }
 
+.update-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 84px;
+  z-index: 20;
+  width: min(440px, calc(100vw - 32px));
+  padding: 14px;
+  color: var(--ink);
+  border: 1px solid rgba(13, 148, 136, .35);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 52px rgba(17, 24, 39, .18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  animation: dashboardFadeIn .25s ease both;
+}
+
+.update-banner strong,
+.update-banner span {
+  display: block;
+}
+
+.update-banner span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .empty {
   padding: 24px;
   color: var(--muted);
@@ -1147,6 +1177,13 @@ dialog::backdrop {
 
   .chart-panel {
     min-height: 300px;
+  }
+
+  .update-banner {
+    right: 16px;
+    bottom: 16px;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   h1 {

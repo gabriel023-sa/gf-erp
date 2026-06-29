@@ -238,6 +238,8 @@ let currentUser = null;
 let realtimeSocket = null;
 let deferredInstallPrompt = null;
 let dashboardCharts = {};
+let waitingServiceWorker = null;
+let refreshingForUpdate = false;
 
 const menu = document.querySelector('#menu');
 const pageTitle = document.querySelector('#pageTitle');
@@ -249,6 +251,8 @@ const toast = document.querySelector('#toast');
 const loginForm = document.querySelector('#loginForm');
 const loginMessage = document.querySelector('#loginMessage');
 const syncStatus = document.querySelector('#syncStatus');
+const updateBanner = document.querySelector('#updateBanner');
+const refreshAppButton = document.querySelector('#refreshApp');
 
 init();
 
@@ -316,6 +320,7 @@ function bindActions() {
   document.querySelector('#exportMonthlyPdf').addEventListener('click', exportMonthlyReportPdf);
   document.querySelector('#logoutButton').addEventListener('click', () => logout(true));
   document.querySelector('#installApp').addEventListener('click', installPwa);
+  refreshAppButton.addEventListener('click', activateWaitingServiceWorker);
 
   document.querySelectorAll('[data-month-filter]').forEach(input => {
     input.addEventListener('change', () => renderAll());
@@ -1771,6 +1776,20 @@ function showToast(message) {
   setTimeout(() => toast.classList.remove('show'), 2200);
 }
 
+function showUpdateBanner(worker) {
+  waitingServiceWorker = worker || waitingServiceWorker;
+  if (!updateBanner) return;
+  updateBanner.classList.remove('hidden');
+}
+
+function activateWaitingServiceWorker() {
+  if (!waitingServiceWorker) {
+    window.location.reload();
+    return;
+  }
+  waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
+}
+
 function makeId(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -1787,7 +1806,34 @@ function currentMonthInputValue() {
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/service-worker.js').catch(() => {
+  navigator.serviceWorker.register('/service-worker.js').then(registration => {
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      showUpdateBanner(registration.waiting);
+    }
+
+    registration.addEventListener('updatefound', () => {
+      const newWorker = registration.installing;
+      if (!newWorker) return;
+
+      newWorker.addEventListener('statechange', () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          showUpdateBanner(newWorker);
+        }
+      });
+    });
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshingForUpdate) return;
+      refreshingForUpdate = true;
+      window.location.reload();
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') registration.update();
+    });
+
+    setInterval(() => registration.update(), 15 * 60 * 1000);
+  }).catch(() => {
     setSyncStatus('PWA indisponivel', 'offline');
   });
 }
