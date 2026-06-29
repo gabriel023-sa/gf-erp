@@ -7,7 +7,14 @@ function today(offsetDays = 0) {
 function createInitialData() {
   return {
     sales: [
-      { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
+      { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', sellerId: 'se1', sellerCommissionPercent: 5, sellerCommissionValue: 2.5, sellerCommissionRule: 'Comissao padrao do vendedor', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
+    ],
+    sellers: [
+      { id: 'se1', name: 'Bianca', photoUrl: '', document: '', phone: '', email: '', roleTitle: 'Vendedora', admissionDate: today(), defaultCommission: 5, fixedCommission: 0, productCommissions: '', categoryCommissions: '', active: true, notes: 'Comissao padrao de 5% migrada da regra original da GF.' },
+      { id: 'se2', name: 'Gabriel', photoUrl: '', document: '', phone: '', email: 'admin@gfimpressao3d.com.br', roleTitle: 'Administrador', admissionDate: today(), defaultCommission: 0, fixedCommission: 0, productCommissions: '', categoryCommissions: '', active: true, notes: '' }
+    ],
+    commissions: [
+      { id: 'co1', saleId: 's1', sellerId: 'se1', clientId: 'c1', productId: 'p1', saleDate: today(), saleValue: 50, percent: 5, value: 2.5, rule: 'Comissao padrao do vendedor', status: 'Pendente', paymentDate: '', paidBy: '', note: '' }
     ],
     quotes: [
       { id: 'q1', date: today(), clientName: 'Loja Maker', phone: '(11) 3333-2211', productId: 'p2', quantity: 3, unitValue: 40, totalValue: 120, deadline: today(7), status: 'Enviado', notes: 'Orcamento inicial de exemplo.' }

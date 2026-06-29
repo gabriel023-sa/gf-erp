@@ -314,6 +314,36 @@
       </div>
     </section>
 
+    <section id="sellers" class="view" aria-labelledby="sellers-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="sellers-title">Vendedores</h2>
+            <p class="panel-note">Cadastro de vendedores, regras de comissao e status ativo/inativo.</p>
+          </div>
+          <button class="primary-button" data-open-form="sellers" type="button">Novo vendedor</button>
+        </div>
+        <div id="sellersTable" class="table-wrap"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Comissoes</h2>
+            <p class="panel-note">Historico de comissoes calculadas nas vendas e controle de pagamento.</p>
+          </div>
+          <div class="panel-actions">
+            <label class="month-filter">Mes e ano <input id="commissionsFilterMonth" type="month" data-month-filter="commissions"></label>
+            <button class="secondary-button" type="button" data-clear-filter="commissions">Limpar filtro</button>
+            <button id="exportCommissionsPdf" class="primary-button" type="button">Exportar PDF</button>
+          </div>
+        </div>
+        <div id="commissionsSummary" class="summary-grid"></div>
+        <div id="commissionReportBlocks" class="commission-report-grid"></div>
+        <div id="commissionsTable" class="table-wrap mobile-card-table"></div>
+      </div>
+    </section>
+
     <section id="aiCfo" class="view ai-cfo-view" aria-labelledby="ai-cfo-title">
       <div class="ai-cfo-layout">
         <section class="panel ai-cfo-chat-panel">

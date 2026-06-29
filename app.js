@@ -5,7 +5,7 @@ const API_BASE_URL = window.GF_ERP_API_BASE || '';
 const MONTHLY_REVENUE_GOAL = 10000;
 const COST_WARNING_TEXT = 'Atenção: há vendas com custo não informado. O lucro pode estar superestimado.';
 const filteredModules = new Set(['sales', 'cash', 'payables', 'receivables']);
-const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes', 'production']);
+const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes', 'production', 'sellers']);
 
 const modules = [
   { id: 'dashboard', title: 'Dashboard', icon: '01' },
@@ -19,7 +19,8 @@ const modules = [
   { id: 'receivables', title: 'Contas a Receber', icon: '09' },
   { id: 'reports', title: 'Relatorios', icon: '10' },
   { id: 'production', title: 'Producao', icon: '11' },
-  { id: 'aiCfo', title: 'IA CFO', icon: '12' }
+  { id: 'aiCfo', title: 'IA CFO', icon: '12' },
+  { id: 'sellers', title: 'Vendedores', icon: '13' }
 ];
 
 const schemas = {
@@ -33,11 +34,31 @@ const schemas = {
       { name: 'value', label: 'Valor total', type: 'number', min: 0, step: 0.01, required: true },
       { name: 'paymentMethod', label: 'Forma de pagamento', type: 'select', options: ['Pix', 'Dinheiro', 'Debito', 'Credito', 'Parcelado'], required: true },
       { name: 'status', label: 'Status', type: 'select', options: ['Recebido', 'A receber', 'Entregue', 'Em producao'], required: true },
+      { name: 'sellerId', label: 'Vendedor responsavel', type: 'select', source: 'sellers' },
       { name: 'createProductionOrder', label: 'Gerar pedido de producao automaticamente', type: 'checkbox' },
       { name: 'biancaCommission', label: 'Comissao da Bianca 5%', type: 'checkbox' },
       { name: 'notes', label: 'Observacoes', type: 'textarea', full: true }
     ],
-    columns: ['date', 'clientId', 'productId', 'quantity', 'value', 'paymentMethod', 'status', 'biancaCommission', 'saleProfit']
+    columns: ['date', 'clientId', 'productId', 'quantity', 'value', 'paymentMethod', 'status', 'sellerId', 'sellerCommissionValue', 'biancaCommission', 'saleProfit']
+  },
+  sellers: {
+    title: 'vendedor',
+    fields: [
+      { name: 'name', label: 'Nome', type: 'text', required: true },
+      { name: 'photoUrl', label: 'Foto (URL)', type: 'url' },
+      { name: 'document', label: 'CPF', type: 'text' },
+      { name: 'phone', label: 'Telefone', type: 'tel' },
+      { name: 'email', label: 'E-mail', type: 'email' },
+      { name: 'roleTitle', label: 'Cargo', type: 'text' },
+      { name: 'admissionDate', label: 'Data de admissao', type: 'date' },
+      { name: 'defaultCommission', label: 'Comissao padrao (%)', type: 'number', min: 0, step: 0.01 },
+      { name: 'fixedCommission', label: 'Comissao fixa por venda (R$)', type: 'number', min: 0, step: 0.01 },
+      { name: 'productCommissions', label: 'Comissao personalizada por produto', type: 'textarea', full: true },
+      { name: 'categoryCommissions', label: 'Comissao por categoria', type: 'textarea', full: true },
+      { name: 'active', label: 'Vendedor ativo', type: 'checkbox', defaultValue: true },
+      { name: 'notes', label: 'Observacoes', type: 'textarea', full: true }
+    ],
+    columns: ['sellerPhoto', 'name', 'roleTitle', 'phone', 'email', 'defaultCommission', 'fixedCommission', 'sellerCommissionRules', 'active']
   },
   quotes: {
     title: 'orcamento',
@@ -169,6 +190,23 @@ const labels = {
   deadline: 'Prazo',
   paymentMethod: 'Forma de pagamento',
   status: 'Status',
+  sellerId: 'Vendedor',
+  sellerPhoto: 'Foto',
+  roleTitle: 'Cargo',
+  admissionDate: 'Admissao',
+  defaultCommission: 'Comissao padrao',
+  fixedCommission: 'Comissao fixa',
+  productCommissions: 'Comissao por produto',
+  categoryCommissions: 'Comissao por categoria',
+  sellerCommissionRules: 'Regras',
+  sellerCommissionPercent: '% comissao',
+  sellerCommissionValue: 'Comissao',
+  sellerCommissionRule: 'Regra aplicada',
+  commissionStatus: 'Situacao',
+  commissionPaymentDate: 'Data do pagamento',
+  commissionPaidBy: 'Pago por',
+  commissionNote: 'Observacao',
+  saleId: 'Venda',
   biancaCommission: 'Comissao Bianca',
   saleProfit: 'Lucro estimado',
   name: 'Nome',
@@ -217,6 +255,8 @@ const emptyData = {
   products: [],
   production: [],
   equipment: [],
+  sellers: [],
+  commissions: [],
   inventoryItems: [],
   stock: [],
   cash: [],
@@ -244,8 +284,15 @@ const sampleData = {
     { id: 'i7', name: 'Filamento PLA', category: 'Impressao 3D', quantity: 2, minStock: 1, idealStock: 4, unit: 'kg', unitCost: 74.9 },
     { id: 'i8', name: 'Filamento PETG', category: 'Impressao 3D', quantity: 1, minStock: 1, idealStock: 3, unit: 'kg', unitCost: 0 }
   ],
+  sellers: [
+    { id: 'se1', name: 'Bianca', photoUrl: '', document: '', phone: '', email: '', roleTitle: 'Vendedora', admissionDate: today(), defaultCommission: 5, fixedCommission: 0, productCommissions: '', categoryCommissions: '', active: true, notes: 'Comissao padrao de 5% migrada da regra original da GF.' },
+    { id: 'se2', name: 'Gabriel', photoUrl: '', document: '', phone: '', email: 'admin@gfimpressao3d.com.br', roleTitle: 'Administrador', admissionDate: today(), defaultCommission: 0, fixedCommission: 0, productCommissions: '', categoryCommissions: '', active: true, notes: '' }
+  ],
   sales: [
-    { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
+    { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', sellerId: 'se1', sellerCommissionPercent: 5, sellerCommissionValue: 2.5, sellerCommissionRule: 'Comissao padrao do vendedor', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
+  ],
+  commissions: [
+    { id: 'co1', saleId: 's1', sellerId: 'se1', clientId: 'c1', productId: 'p1', saleDate: today(), saleValue: 50, percent: 5, value: 2.5, rule: 'Comissao padrao do vendedor', status: 'Pendente', paymentDate: '', paidBy: '', note: '' }
   ],
   quotes: [
     { id: 'q1', date: today(), clientName: 'Loja Maker', phone: '(11) 3333-2211', productId: 'p2', quantity: 3, unitValue: 40, totalValue: 120, deadline: today(7), status: 'Enviado', notes: 'Orcamento inicial de exemplo.' }
@@ -375,6 +422,7 @@ function bindActions() {
   document.querySelector('#exportData').addEventListener('click', exportBackup);
   document.querySelector('#importData').addEventListener('change', importBackup);
   document.querySelector('#exportMonthlyPdf').addEventListener('click', exportMonthlyReportPdf);
+  document.querySelector('#exportCommissionsPdf')?.addEventListener('click', exportCommissionsPdf);
   document.querySelector('#logoutButton').addEventListener('click', () => logout(true));
   document.querySelector('#installApp').addEventListener('click', installPwa);
   refreshAppButton.addEventListener('click', activateWaitingServiceWorker);
@@ -475,6 +523,10 @@ function openView(viewId) {
 function openForm(moduleId, recordId = null) {
   const schema = schemas[moduleId];
   const record = recordId ? data[moduleId].find(item => item.id === recordId) : getDefaultRecord(moduleId);
+  if (moduleId === 'sellers' && !isAdmin()) {
+    alert('Somente administradores podem cadastrar ou alterar vendedores e regras de comissao.');
+    return;
+  }
   if (moduleId === 'stock' && record && record.sourceSaleId) {
     alert('Este e um movimento automatico gerado por venda e nao pode ser alterado manualmente.');
     return;
@@ -524,6 +576,12 @@ function getOptions(field) {
   if (field.source === 'clients') return data.clients.map(client => ({ value: client.id, label: client.name }));
   if (field.source === 'products') return data.products.map(product => ({ value: product.id, label: product.name }));
   if (field.source === 'inventoryItems') return data.inventoryItems.map(item => ({ value: item.id, label: item.name }));
+  if (field.source === 'sellers') {
+    return data.sellers.map(seller => ({
+      value: seller.id,
+      label: `${seller.name}${seller.active === false ? ' (Inativo)' : ''}`
+    }));
+  }
   return [];
 }
 
@@ -534,6 +592,11 @@ function saveForm(event) {
   const formData = new FormData(entryForm);
   const previousRecord = recordId ? data[moduleId].find(item => item.id === recordId) : null;
   const record = previousRecord ? { ...previousRecord } : { id: makeId(moduleId) };
+
+  if (moduleId === 'sellers' && !isAdmin()) {
+    alert('Somente administradores podem salvar vendedores e regras de comissao.');
+    return;
+  }
 
   schema.fields.forEach(field => {
     const raw = formData.get(field.name);
@@ -553,6 +616,12 @@ function saveForm(event) {
     }
   }
 
+  if (moduleId === 'sellers') {
+    record.defaultCommission = Number(record.defaultCommission || 0);
+    record.fixedCommission = Number(record.fixedCommission || 0);
+    record.active = record.active !== false;
+  }
+
   if (moduleId === 'quotes') {
     record.totalValue = Number(record.quantity || 0) * Number(record.unitValue || 0);
   }
@@ -561,6 +630,10 @@ function saveForm(event) {
     record.status = record.status || 'Novo';
     record.entryDate = record.entryDate || today();
     record.orderNumber = record.orderNumber || nextProductionOrderNumber();
+  }
+
+  if (moduleId === 'sales') {
+    applySaleCommissionSnapshot(record, previousRecord);
   }
 
   if (moduleId === 'payables') {
@@ -592,6 +665,7 @@ function saveForm(event) {
 function applySideEffects(moduleId, record) {
   if (moduleId === 'sales') {
     syncSaleSideEffects(record, null);
+    syncSaleCommission(record, null);
   }
 
   if (moduleId === 'stock') {
@@ -614,7 +688,10 @@ function applySideEffects(moduleId, record) {
 function syncUpdatedRecord(moduleId, previousRecord, record) {
   if (!previousRecord) return;
 
-  if (moduleId === 'sales') syncSaleSideEffects(record, previousRecord);
+  if (moduleId === 'sales') {
+    syncSaleSideEffects(record, previousRecord);
+    syncSaleCommission(record, previousRecord);
+  }
   if (moduleId === 'stock') syncStockMovement(record, previousRecord);
   if (moduleId === 'payables') syncPayableCash(record);
   if (moduleId === 'receivables') syncReceivableCash(record);
@@ -627,6 +704,7 @@ function renderAll() {
   renderProductionKanban();
   renderEquipmentBoard();
   renderPayablesSummary();
+  renderCommissions();
   renderDashboard();
   renderReports();
   renderAiCfo();
@@ -681,6 +759,10 @@ function renderTable(moduleId) {
 function renderRowActions(moduleId, row) {
   if (moduleId === 'stock' && row.sourceSaleId) {
     return '<span class="status warn">Movimento automatico</span>';
+  }
+
+  if (moduleId === 'sellers' && !isAdmin()) {
+    return '<span class="status warn">Somente admin</span>';
   }
 
   const baseActions = [
@@ -769,6 +851,14 @@ function renderDashboard() {
     .slice(0, 3);
   const averageTicket = monthlySales.length ? salesMonth / monthlySales.length : 0;
   const status = getDailyFinancialStatus(cashBalance, receivable, payable, goalProgress);
+  const pendingSellerCommission = data.commissions
+    .filter(commission => commission.status !== 'Pago')
+    .reduce((total, commission) => total + Number(commission.value || 0), 0);
+  const paidSellerCommissionMonth = data.commissions
+    .filter(commission => commission.status === 'Pago' && isCurrentMonth(commission.paymentDate))
+    .reduce((total, commission) => total + Number(commission.value || 0), 0);
+  const sellerRanking = groupCommissions(data.commissions.filter(commission => isCurrentMonth(commission.saleDate)), row => row.sellerId, row => nameById('sellers', row.sellerId));
+  const bestSeller = sellerRanking[0];
 
   setText('dashboardDateTime', formatDashboardDateTime());
   setText('metricGoalProgress', `${Math.round(goalProgress)}%`);
@@ -797,7 +887,11 @@ function renderDashboard() {
     { icon: 'OP', label: 'Produção hoje', value: String(productionToday), detail: 'Pedidos ativos iniciados hoje', level: productionToday ? 'status-warning' : 'status-good' },
     { icon: 'AT', label: 'Pedidos atrasados', value: String(lateProduction.length), detail: 'Prazos vencidos', level: lateProduction.length ? 'status-critical' : 'status-good' },
     { icon: 'EQ', label: 'Equipamentos livres', value: String(freeEquipment), detail: `${data.equipment.length} equipamento(s)`, level: freeEquipment ? 'status-good' : 'status-warning' },
-    { icon: 'CR', label: 'Estoque crítico', value: String(criticalStockItems.length), detail: 'Itens no mínimo ou abaixo', level: criticalStockItems.length ? 'status-critical' : 'status-good' }
+    { icon: 'CR', label: 'Estoque crítico', value: String(criticalStockItems.length), detail: 'Itens no mínimo ou abaixo', level: criticalStockItems.length ? 'status-critical' : 'status-good' },
+    { icon: 'CM', label: 'Comissao pendente', value: money(pendingSellerCommission), detail: 'A pagar aos vendedores', level: pendingSellerCommission ? 'status-warning' : 'status-good' },
+    { icon: 'PG', label: 'Comissao paga no mes', value: money(paidSellerCommissionMonth), detail: 'Pagamentos realizados', level: paidSellerCommissionMonth ? 'status-good' : 'status-warning' },
+    { icon: 'MV', label: 'Melhor vendedor', value: bestSeller ? bestSeller.name : 'Sem dados', detail: bestSeller ? money(bestSeller.totalSold) : 'Nenhuma venda no mes', level: bestSeller ? 'status-good' : 'status-warning' },
+    { icon: 'RK', label: 'Ranking vendedores', value: String(sellerRanking.length), detail: sellerRanking.slice(0, 3).map(item => item.name).join(', ') || 'Sem ranking', level: sellerRanking.length ? 'status-good' : 'status-warning' }
   ].map(card => `
     <article class="executive-card ${card.level}">
       <div class="card-icon">${card.icon}</div>
@@ -812,7 +906,8 @@ function renderDashboard() {
     { title: 'Capital comprometido', detail: `${money(payable)} em contas a pagar abertas`, level: payable > cashBalance && payable > 0 ? 'status-critical' : 'status-warning' },
     { title: 'Recebiveis pendentes', detail: `${money(receivable)} aguardando recebimento`, level: receivable > 0 ? 'status-warning' : 'status-good' },
     { title: 'Operacao', detail: `${productionOrders} pedido(s) em producao e ${deliveredOrders} entregue(s)`, level: productionOrders > 0 ? 'status-warning' : 'status-good' },
-    { title: 'Próximos prazos', detail: nextDeadlines.length ? nextDeadlines.map(order => `${order.orderNumber} em ${formatDate(order.deadline)}`).join(' | ') : 'Nenhum prazo pendente', level: lateProduction.length ? 'status-critical' : 'status-good' }
+    { title: 'Próximos prazos', detail: nextDeadlines.length ? nextDeadlines.map(order => `${order.orderNumber} em ${formatDate(order.deadline)}`).join(' | ') : 'Nenhum prazo pendente', level: lateProduction.length ? 'status-critical' : 'status-good' },
+    { title: 'Comissoes', detail: bestSeller ? `Lider do mes: ${bestSeller.name} com ${money(bestSeller.totalCommission)} em comissoes` : 'Sem comissoes no mes', level: pendingSellerCommission ? 'status-warning' : 'status-good' }
   ].map(item => `
     <div class="stack-item ${item.level}">
       <strong>${escapeHtml(item.title)}</strong>
@@ -1100,6 +1195,199 @@ function renderRankingTable(targetId, headings, rows, mapRow) {
   `).join('');
 
   target.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderCommissions() {
+  const target = document.querySelector('#commissionsTable');
+  if (!target) return;
+
+  const report = getCommissionReportData();
+  const summary = document.querySelector('#commissionsSummary');
+  if (summary) {
+    const cards = [
+      { label: 'Total vendido', value: money(report.totalSold), detail: `${report.saleCount} venda(s) com comissao` },
+      { label: 'Total de comissao', value: money(report.totalCommission), detail: 'Pendente + paga' },
+      { label: 'Ticket medio', value: money(report.averageTicket), detail: 'Media das vendas com comissao' },
+      { label: 'Comissao pendente', value: money(report.pendingCommission), detail: 'A pagar aos vendedores' },
+      { label: 'Comissao paga', value: money(report.paidCommission), detail: 'Ja quitada no periodo' },
+      { label: 'Melhor vendedor', value: report.bestSeller ? report.bestSeller.name : 'Sem dados', detail: report.bestSeller ? money(report.bestSeller.totalSold) : 'Nenhuma venda' }
+    ];
+    summary.innerHTML = cards.map(card => `
+      <article class="summary-card">
+        <span>${escapeHtml(card.label)}</span>
+        <strong>${escapeHtml(card.value)}</strong>
+        <p>${escapeHtml(card.detail)}</p>
+      </article>
+    `).join('');
+  }
+
+  const blocks = document.querySelector('#commissionReportBlocks');
+  if (blocks) {
+    blocks.innerHTML = [
+      renderCommissionRankingBlock('Comissao por vendedor', report.bySeller),
+      renderCommissionRankingBlock('Comissao por produto', report.byProduct),
+      renderCommissionRankingBlock('Comissao por cliente', report.byClient),
+      renderCommissionRankingBlock('Comissao pendente', report.pendingBySeller),
+      renderCommissionRankingBlock('Comissao paga', report.paidBySeller)
+    ].join('');
+  }
+
+  if (!report.rows.length) {
+    target.innerHTML = '<div class="empty">Nenhuma comissao registrada para o filtro selecionado.</div>';
+    return;
+  }
+
+  const head = ['Venda', 'Vendedor', 'Cliente', 'Produto', 'Data', 'Valor da venda', '%', 'Comissao', 'Situacao', 'Pagamento', 'Acoes']
+    .map(label => `<th>${label}</th>`)
+    .join('');
+  const body = report.rows.map(commission => `
+    <tr>
+      <td data-label="Venda">${escapeHtml(commission.saleId || '-')}</td>
+      <td data-label="Vendedor">${escapeHtml(nameById('sellers', commission.sellerId))}</td>
+      <td data-label="Cliente">${escapeHtml(nameById('clients', commission.clientId))}</td>
+      <td data-label="Produto">${escapeHtml(nameById('products', commission.productId))}</td>
+      <td data-label="Data">${formatDate(commission.saleDate)}</td>
+      <td data-label="Valor da venda">${money(commission.saleValue)}</td>
+      <td data-label="%">${formatPercent(commission.percent)}</td>
+      <td data-label="Comissao">${money(commission.value)}</td>
+      <td data-label="Situacao"><span class="status ${commission.status === 'Pago' ? 'ok' : 'warn'}">${escapeHtml(commission.status || 'Pendente')}</span></td>
+      <td data-label="Pagamento">${formatCommissionPayment(commission)}</td>
+      <td class="actions" data-label="Acoes">${renderCommissionActions(commission)}</td>
+    </tr>
+  `).join('');
+
+  target.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  target.querySelectorAll('[data-pay-commission]').forEach(button => {
+    button.addEventListener('click', () => markCommissionPaid(button.dataset.payCommission));
+  });
+}
+
+function renderCommissionRankingBlock(title, rows) {
+  const items = rows.slice(0, 5).map(row => `
+    <li>
+      <span>${escapeHtml(row.name)}</span>
+      <strong>${money(row.totalCommission)}</strong>
+      <small>${row.saleCount} venda(s) | ${money(row.totalSold)}</small>
+    </li>
+  `).join('');
+
+  return `
+    <section class="commission-report-block">
+      <h3>${escapeHtml(title)}</h3>
+      <ul>${items || '<li><span>Sem dados</span><strong>R$ 0,00</strong><small>Nenhuma venda no periodo</small></li>'}</ul>
+    </section>
+  `;
+}
+
+function renderCommissionActions(commission) {
+  if (commission.status === 'Pago') return '<span class="status ok">Pago</span>';
+  if (!isAdmin()) return '<span class="status warn">Somente admin</span>';
+  return `
+    <div class="commission-action">
+      <input type="text" data-commission-note="${escapeHtml(commission.id)}" placeholder="Observacao">
+      <button class="mini-button convert" type="button" data-pay-commission="${escapeHtml(commission.id)}">Marcar paga</button>
+    </div>
+  `;
+}
+
+function markCommissionPaid(commissionId) {
+  if (!isAdmin()) {
+    alert('Somente administradores podem marcar comissao como paga.');
+    return;
+  }
+  const commission = data.commissions.find(item => item.id === commissionId);
+  if (!commission) return;
+  const noteInput = document.querySelector(`[data-commission-note="${CSS.escape(commissionId)}"]`);
+  const note = noteInput ? noteInput.value.trim() : '';
+  commission.status = 'Pago';
+  commission.paymentDate = today();
+  commission.paidBy = currentUser ? (currentUser.email || currentUser.name || 'admin') : 'admin';
+  commission.note = note;
+  persist();
+  renderAll();
+  showToast('Comissao marcada como paga.');
+}
+
+function getCommissionReportData() {
+  const monthValue = document.querySelector('#commissionsFilterMonth')?.value || '';
+  const rows = data.commissions
+    .filter(commission => !monthValue || matchesMonth(commission.saleDate || commission.paymentDate, monthValue))
+    .sort((a, b) => String(b.saleDate || '').localeCompare(String(a.saleDate || '')));
+  const totalSold = rows.reduce((total, row) => total + Number(row.saleValue || 0), 0);
+  const totalCommission = rows.reduce((total, row) => total + Number(row.value || 0), 0);
+  const pendingRows = rows.filter(row => row.status !== 'Pago');
+  const paidRows = rows.filter(row => row.status === 'Pago');
+
+  const bySeller = groupCommissions(rows, row => row.sellerId, row => nameById('sellers', row.sellerId));
+  return {
+    rows,
+    totalSold,
+    totalCommission,
+    averageTicket: rows.length ? totalSold / rows.length : 0,
+    saleCount: rows.length,
+    pendingCommission: pendingRows.reduce((total, row) => total + Number(row.value || 0), 0),
+    paidCommission: paidRows.reduce((total, row) => total + Number(row.value || 0), 0),
+    bestSeller: bySeller[0] || null,
+    bySeller,
+    byProduct: groupCommissions(rows, row => row.productId, row => nameById('products', row.productId)),
+    byClient: groupCommissions(rows, row => row.clientId, row => nameById('clients', row.clientId)),
+    pendingBySeller: groupCommissions(pendingRows, row => row.sellerId, row => nameById('sellers', row.sellerId)),
+    paidBySeller: groupCommissions(paidRows, row => row.sellerId, row => nameById('sellers', row.sellerId))
+  };
+}
+
+function groupCommissions(rows, keyGetter, nameGetter) {
+  const grouped = new Map();
+  rows.forEach(row => {
+    const key = keyGetter(row) || 'sem-id';
+    const current = grouped.get(key) || { name: nameGetter(row), totalSold: 0, totalCommission: 0, saleCount: 0 };
+    current.totalSold += Number(row.saleValue || 0);
+    current.totalCommission += Number(row.value || 0);
+    current.saleCount += 1;
+    grouped.set(key, current);
+  });
+  return [...grouped.values()].sort((a, b) => b.totalCommission - a.totalCommission || b.totalSold - a.totalSold);
+}
+
+function formatCommissionPayment(commission) {
+  if (commission.status !== 'Pago') return '-';
+  const parts = [formatDate(commission.paymentDate)];
+  if (commission.paidBy) parts.push(`por ${escapeHtml(commission.paidBy)}`);
+  if (commission.note) parts.push(escapeHtml(commission.note));
+  return parts.join('<br>');
+}
+
+function exportCommissionsPdf() {
+  const report = getCommissionReportData();
+  const lines = [
+    'GF ERP - Relatorio de comissoes',
+    `Gerado em: ${formatDate(today())}`,
+    `Periodo: ${document.querySelector('#commissionsFilterMonth')?.value || 'Todos os periodos'}`,
+    '',
+    'Resumo',
+    `Total vendido: ${money(report.totalSold)}`,
+    `Total de comissao: ${money(report.totalCommission)}`,
+    `Ticket medio: ${money(report.averageTicket)}`,
+    `Quantidade de vendas: ${report.saleCount}`,
+    `Comissao pendente: ${money(report.pendingCommission)}`,
+    `Comissao paga: ${money(report.paidCommission)}`,
+    '',
+    'Comissao por vendedor',
+    ...formatRankingLines(report.bySeller, item => `${item.name} - ${money(item.totalCommission)} - ${item.saleCount} venda(s)`),
+    '',
+    'Comissao por produto',
+    ...formatRankingLines(report.byProduct, item => `${item.name} - ${money(item.totalCommission)} - ${money(item.totalSold)} vendido`),
+    '',
+    'Comissao por cliente',
+    ...formatRankingLines(report.byClient, item => `${item.name} - ${money(item.totalCommission)} - ${money(item.totalSold)} vendido`)
+  ];
+  const blob = createSimplePdf(lines);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `gf-erp-comissoes-${today()}.pdf`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('Relatorio de comissoes exportado.');
 }
 
 function rankProductsBySales(sales) {
@@ -1415,6 +1703,10 @@ function removeRecord(moduleId, id) {
   const record = data[moduleId].find(item => item.id === id);
   if (moduleId === 'stock' && record && record.sourceSaleId) {
     alert('Este e um movimento automatico gerado por venda e nao pode ser excluido manualmente.');
+    return;
+  }
+  if (moduleId === 'sellers' && !isAdmin()) {
+    alert('Somente administradores podem excluir vendedores.');
     return;
   }
   if (!confirm('Excluir este registro?')) return;
@@ -1737,13 +2029,19 @@ function renderPayablesSummary() {
 
 function formatCell(column, value, row) {
   if (column === 'productPhoto') return formatProductPhoto(row);
+  if (column === 'sellerPhoto') return formatSellerPhoto(row);
   if (column === 'clientId') return escapeHtml(nameById('clients', value));
   if (column === 'productId') return escapeHtml(nameById('products', value));
+  if (column === 'sellerId') return value ? escapeHtml(nameById('sellers', value)) : '<span class="status">Nao informado</span>';
   if (column === 'inventoryItemId') return escapeHtml(nameById('inventoryItems', value));
   if (column === 'originInfo') return row.sourceSaleId ? '<span class="status warn">Movimento automatico</span>' : '<span class="status">Manual</span>';
   if (column === 'saleLink') return row.sourceSaleId ? `<span class="status warn">${escapeHtml(row.sourceSaleId)}</span>` : '<span class="status">Manual</span>';
   if (column === 'estimatedProfit') return formatEstimatedProfit(row);
   if (column === 'saleProfit') return formatSaleProfit(row);
+  if (column === 'sellerCommissionValue') return Number(value || 0) > 0 ? money(value) : '<span class="status">Sem comissao</span>';
+  if (column === 'defaultCommission') return formatPercent(value);
+  if (column === 'fixedCommission') return money(value);
+  if (column === 'sellerCommissionRules') return formatSellerCommissionRules(row);
   if (column === 'biancaCommission') return value ? '<span class="status warn">Sim - 5%</span>' : '<span class="status">Nao</span>';
   if (column === 'active') return value !== false ? '<span class="status ok">Ativo</span>' : '<span class="status bad">Inativo</span>';
   if (column === 'installmentInfo') return formatInstallmentInfo(row);
@@ -1765,6 +2063,19 @@ function statusClass(value) {
 function formatProductPhoto(product) {
   if (!product.photoUrl) return '<span class="product-photo-placeholder">GF</span>';
   return `<img class="product-photo" src="${escapeHtml(product.photoUrl)}" alt="${escapeHtml(product.name || 'Produto')}">`;
+}
+
+function formatSellerPhoto(seller) {
+  if (!seller.photoUrl) return '<span class="product-photo-placeholder">GF</span>';
+  return `<img class="product-photo" src="${escapeHtml(seller.photoUrl)}" alt="${escapeHtml(seller.name || 'Vendedor')}">`;
+}
+
+function formatSellerCommissionRules(seller) {
+  const rules = [];
+  if (seller.productCommissions) rules.push('Produto');
+  if (seller.categoryCommissions) rules.push('Categoria');
+  if (Number(seller.fixedCommission || 0) > 0) rules.push('Fixa');
+  return rules.length ? `<span class="status warn">${escapeHtml(rules.join(' + '))}</span>` : '<span class="status">Padrao</span>';
 }
 
 function nameById(collection, id) {
@@ -1965,7 +2276,125 @@ function calculateSaleProductCost(sale) {
 }
 
 function calculateSaleCommission(sale) {
-  return sale.biancaCommission ? Number(sale.value || 0) * 0.05 : 0;
+  const sellerCommission = Number(sale.sellerCommissionValue || 0);
+  const legacyCommission = sale.biancaCommission ? Number(sale.value || 0) * 0.05 : 0;
+  return sellerCommission || legacyCommission;
+}
+
+function applySaleCommissionSnapshot(sale, previousSale) {
+  const previousStable = previousSale
+    && previousSale.sellerId === sale.sellerId
+    && previousSale.productId === sale.productId
+    && Number(previousSale.value || 0) === Number(sale.value || 0)
+    && Number(previousSale.quantity || 0) === Number(sale.quantity || 0)
+    && previousSale.sellerCommissionValue !== undefined
+    && previousSale.sellerCommissionValue !== null;
+
+  if (previousStable) {
+    sale.sellerCommissionPercent = Number(previousSale.sellerCommissionPercent || 0);
+    sale.sellerCommissionValue = Number(previousSale.sellerCommissionValue || 0);
+    sale.sellerCommissionRule = previousSale.sellerCommissionRule || '';
+    return;
+  }
+
+  const snapshot = calculateSellerCommissionSnapshot(sale);
+  sale.sellerCommissionPercent = snapshot.percent;
+  sale.sellerCommissionValue = snapshot.value;
+  sale.sellerCommissionRule = snapshot.rule;
+}
+
+function calculateSellerCommissionSnapshot(sale) {
+  const seller = data.sellers.find(item => item.id === sale.sellerId);
+  if (!seller) return { percent: 0, value: 0, rule: '' };
+
+  const product = productById(sale.productId);
+  return calculateCommissionFromSeller(seller, product, sale);
+}
+
+function calculateSellerCommissionSnapshotForData(targetData, sale) {
+  const seller = targetData.sellers.find(item => item.id === sale.sellerId);
+  const product = targetData.products.find(item => item.id === sale.productId);
+  if (!seller) return { percent: 0, value: 0, rule: '' };
+  return calculateCommissionFromSeller(seller, product, sale);
+}
+
+function calculateCommissionFromSeller(seller, product, sale) {
+  const productRule = findCommissionRule(seller.productCommissions, [product ? product.id : '', product ? product.name : '']);
+  const categoryRule = findCommissionRule(seller.categoryCommissions, [product ? product.category : '']);
+  const percent = productRule.value ?? categoryRule.value ?? Number(seller.defaultCommission || 0);
+  const fixed = Number(seller.fixedCommission || 0);
+  const value = (Number(sale.value || 0) * (percent / 100)) + fixed;
+  const rule = productRule.label || categoryRule.label || (fixed > 0 ? 'Comissao fixa + padrao do vendedor' : 'Comissao padrao do vendedor');
+
+  return {
+    percent,
+    value: roundMoney(value),
+    rule
+  };
+}
+
+function findCommissionRule(rawRules, keys) {
+  const normalizedKeys = keys.filter(Boolean).map(normalizeText);
+  const lines = String(rawRules || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const [rawKey, rawValue] = line.split('=').map(part => part.trim());
+    if (!rawKey || rawValue === undefined) continue;
+    if (!normalizedKeys.includes(normalizeText(rawKey))) continue;
+    const numericValue = Number(String(rawValue).replace(',', '.'));
+    if (Number.isNaN(numericValue)) continue;
+    return { value: numericValue, label: `Regra personalizada: ${rawKey}` };
+  }
+
+  return { value: undefined, label: '' };
+}
+
+function syncSaleCommission(sale, previousSale) {
+  const existing = data.commissions.find(commission => commission.saleId === sale.id);
+  if (!sale.sellerId || Number(sale.sellerCommissionValue || 0) <= 0) return;
+  const commissionRecord = {
+    saleId: sale.id,
+    sellerId: sale.sellerId,
+    clientId: sale.clientId,
+    productId: sale.productId,
+    saleDate: sale.date,
+    saleValue: Number(sale.value || 0),
+    percent: Number(sale.sellerCommissionPercent || 0),
+    value: Number(sale.sellerCommissionValue || 0),
+    rule: sale.sellerCommissionRule || '',
+    status: existing ? existing.status : 'Pendente',
+    paymentDate: existing ? existing.paymentDate || '' : '',
+    paidBy: existing ? existing.paidBy || '' : '',
+    note: existing ? existing.note || '' : ''
+  };
+
+  if (existing) {
+    if (existing.status === 'Pago') {
+      data.commissions = data.commissions.map(commission => commission.id === existing.id
+        ? { ...existing, clientId: sale.clientId, productId: sale.productId, saleDate: sale.date }
+        : commission);
+      return;
+    }
+    data.commissions = data.commissions.map(commission => commission.id === existing.id ? { ...commissionRecord, id: existing.id } : commission);
+    return;
+  }
+
+  data.commissions.push({ id: makeId('commissions'), ...commissionRecord });
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function formatPercent(value) {
+  return `${Number(value || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+}
+
+function isAdmin() {
+  return currentUser && currentUser.role === 'admin';
 }
 
 function isSaleReceived(status) {
@@ -2044,6 +2473,14 @@ function migrateData(loadedData) {
     loadedData.quotes = [];
   }
 
+  if (!Array.isArray(loadedData.sellers)) {
+    loadedData.sellers = [];
+  }
+
+  if (!Array.isArray(loadedData.commissions)) {
+    loadedData.commissions = [];
+  }
+
   loadedData.quotes = loadedData.quotes.map(quote => ({
     ...quote,
     date: quote.date || today(),
@@ -2082,6 +2519,32 @@ function migrateData(loadedData) {
     notes: equipment.notes || ''
   }));
 
+  sampleData.sellers.forEach(initialSeller => {
+    const alreadyExists = loadedData.sellers.some(seller => normalizeText(seller.name) === normalizeText(initialSeller.name));
+    if (alreadyExists) return;
+    const sellerToAdd = structuredClone(initialSeller);
+    if (loadedData.sellers.some(seller => seller.id === sellerToAdd.id)) {
+      sellerToAdd.id = makeId('sellers');
+    }
+    loadedData.sellers.push(sellerToAdd);
+  });
+
+  loadedData.sellers = loadedData.sellers.map(seller => ({
+    ...seller,
+    photoUrl: seller.photoUrl || '',
+    document: seller.document || '',
+    phone: seller.phone || '',
+    email: seller.email || '',
+    roleTitle: seller.roleTitle || '',
+    admissionDate: seller.admissionDate || '',
+    defaultCommission: Number(seller.defaultCommission || 0),
+    fixedCommission: Number(seller.fixedCommission || 0),
+    productCommissions: seller.productCommissions || '',
+    categoryCommissions: seller.categoryCommissions || '',
+    active: seller.active !== false,
+    notes: seller.notes || ''
+  }));
+
   loadedData.sales = loadedData.sales.map(sale => {
     const nextSale = { ...sale };
     if (!nextSale.paymentMethod) nextSale.paymentMethod = 'Pix';
@@ -2089,8 +2552,52 @@ function migrateData(loadedData) {
     if (nextSale.status === 'Pendente') nextSale.status = 'A receber';
     if (nextSale.biancaCommission === undefined) nextSale.biancaCommission = false;
     if (nextSale.createProductionOrder === undefined) nextSale.createProductionOrder = false;
+    if (nextSale.biancaCommission && !nextSale.sellerId) nextSale.sellerId = findSellerIdByName(loadedData, 'Bianca');
+    if (nextSale.sellerId && (nextSale.sellerCommissionValue === undefined || nextSale.sellerCommissionValue === null)) {
+      const snapshot = calculateSellerCommissionSnapshotForData(loadedData, nextSale);
+      nextSale.sellerCommissionPercent = snapshot.percent;
+      nextSale.sellerCommissionValue = snapshot.value;
+      nextSale.sellerCommissionRule = snapshot.rule;
+    }
+    nextSale.sellerCommissionPercent = Number(nextSale.sellerCommissionPercent || 0);
+    nextSale.sellerCommissionValue = Number(nextSale.sellerCommissionValue || 0);
+    nextSale.sellerCommissionRule = nextSale.sellerCommissionRule || '';
     return nextSale;
   });
+
+  loadedData.sales.forEach(sale => {
+    if (!sale.sellerId || Number(sale.sellerCommissionValue || 0) <= 0) return;
+    if (loadedData.commissions.some(commission => commission.saleId === sale.id)) return;
+    loadedData.commissions.push({
+      id: makeId('commissions'),
+      saleId: sale.id,
+      sellerId: sale.sellerId,
+      clientId: sale.clientId,
+      productId: sale.productId,
+      saleDate: sale.date,
+      saleValue: Number(sale.value || 0),
+      percent: Number(sale.sellerCommissionPercent || 0),
+      value: Number(sale.sellerCommissionValue || 0),
+      rule: sale.sellerCommissionRule || (sale.biancaCommission ? 'Comissao Bianca migrada' : 'Comissao da venda'),
+      status: 'Pendente',
+      paymentDate: '',
+      paidBy: '',
+      note: ''
+    });
+  });
+
+  loadedData.commissions = loadedData.commissions.map(commission => ({
+    ...commission,
+    saleDate: commission.saleDate || (loadedData.sales.find(sale => sale.id === commission.saleId) || {}).date || today(),
+    saleValue: Number(commission.saleValue || 0),
+    percent: Number(commission.percent || 0),
+    value: Number(commission.value || 0),
+    rule: commission.rule || '',
+    status: commission.status || 'Pendente',
+    paymentDate: commission.status === 'Pago' ? (commission.paymentDate || today()) : (commission.paymentDate || ''),
+    paidBy: commission.paidBy || '',
+    note: commission.note || ''
+  }));
 
   loadedData.payables = loadedData.payables.map(payable => ({
     ...payable,
@@ -2209,6 +2716,11 @@ function findInventoryUnitCost(targetData, inventoryItemId) {
 function findInventoryItemIdByName(targetData, name) {
   const item = targetData.inventoryItems.find(entry => entry.name === name);
   return item ? item.id : '';
+}
+
+function findSellerIdByName(targetData, name) {
+  const seller = targetData.sellers.find(entry => normalizeText(entry.name) === normalizeText(name));
+  return seller ? seller.id : '';
 }
 
 function persist() {
@@ -2364,7 +2876,7 @@ function wrapPdfLine(line, maxLength) {
 }
 
 function isPdfSectionTitle(line) {
-  return ['Resumo financeiro', 'Produtos mais vendidos', 'Clientes que mais compraram'].includes(line);
+  return ['Resumo financeiro', 'Produtos mais vendidos', 'Clientes que mais compraram', 'Resumo', 'Comissao por vendedor', 'Comissao por produto', 'Comissao por cliente'].includes(line);
 }
 
 function normalizePdfText(value) {
