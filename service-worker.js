@@ -1,9 +1,10 @@
-const CACHE_NAME = 'gf-erp-v1';
+const CACHE_NAME = 'gf-erp-v3';
 const APP_ASSETS = [
   '/',
   '/index.html',
   '/styles.css',
   '/app.js',
+  '/vendor/chart.umd.js',
   '/manifest.webmanifest',
   '/icons/icon-192.svg',
   '/icons/icon-512.svg'

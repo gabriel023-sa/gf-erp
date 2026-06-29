@@ -237,6 +237,7 @@ let authToken = localStorage.getItem(AUTH_TOKEN_KEY);
 let currentUser = null;
 let realtimeSocket = null;
 let deferredInstallPrompt = null;
+let dashboardCharts = {};
 
 const menu = document.querySelector('#menu');
 const pageTitle = document.querySelector('#pageTitle');
@@ -637,37 +638,244 @@ function renderDashboard() {
   const deliveredOrders = data.sales.filter(sale => sale.status === 'Entregue').length;
   const goalProgress = Math.min((salesMonth / MONTHLY_REVENUE_GOAL) * 100, 100);
   const goalRemaining = Math.max(MONTHLY_REVENUE_GOAL - salesMonth, 0);
+  const commissionsMonth = monthlySales.reduce((total, sale) => total + calculateSaleCommission(sale), 0);
+  const expensesMonth = data.payables
+    .filter(item => isCurrentMonth(item.dueDate))
+    .reduce((total, item) => total + Number(item.value || 0), 0);
+  const netProfitMonth = grossProfitMonth - commissionsMonth - expensesMonth;
+  const lowStockItems = data.inventoryItems.filter(item => Number(item.minStock) > 0 && Number(item.quantity) <= Number(item.minStock));
+  const averageTicket = monthlySales.length ? salesMonth / monthlySales.length : 0;
+  const status = getDailyFinancialStatus(cashBalance, receivable, payable, goalProgress);
 
-  setText('metricCash', money(cashBalance));
-  setText('metricSales', money(salesMonth));
-  setText('metricGrossProfit', money(grossProfitMonth));
-  setText('metricReceivable', money(receivable));
-  setText('metricPayable', money(payable));
-  setText('metricProduction', String(productionOrders));
-  setText('metricDelivered', String(deliveredOrders));
-  setText('metricMonthlyGoal', money(MONTHLY_REVENUE_GOAL));
+  setText('dashboardDateTime', formatDashboardDateTime());
   setText('metricGoalProgress', `${Math.round(goalProgress)}%`);
   setText('metricGoalRemaining', goalRemaining > 0
     ? `Faltam ${money(goalRemaining)} para bater a meta`
     : 'Meta mensal atingida');
   document.querySelector('#goalBar').style.width = `${goalProgress}%`;
+  document.querySelector('#goalBar').className = `bar goal-bar ${status.level}`;
+
+  document.querySelector('#dailyFinancialStatus').className = `daily-status ${status.level}`;
+  document.querySelector('#dailyFinancialStatus').innerHTML = `
+    <span>Situação financeira do dia</span>
+    <strong>${escapeHtml(status.title)}</strong>
+    <small>${escapeHtml(status.detail)}</small>
+  `;
+
+  document.querySelector('#executiveMetrics').innerHTML = [
+    { icon: '💰', label: 'Caixa', value: money(cashBalance), detail: 'Saldo atual', level: cashBalance >= 0 ? 'status-good' : 'status-critical' },
+    { icon: '📈', label: 'Faturamento do mês', value: money(salesMonth), detail: `${monthlySales.length} venda(s)`, level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical' },
+    { icon: '💵', label: 'Lucro líquido', value: money(netProfitMonth), detail: 'Estimado no mês', level: netProfitMonth >= 0 ? 'status-good' : 'status-critical' },
+    { icon: '📦', label: 'Estoque', value: `${lowStockItems.length}`, detail: 'Itens em atenção', level: lowStockItems.length ? 'status-warning' : 'status-good' },
+    { icon: '🧾', label: 'Contas a receber', value: money(receivable), detail: 'Valores em aberto', level: receivable > 0 ? 'status-warning' : 'status-good' },
+    { icon: '💸', label: 'Contas a pagar', value: money(payable), detail: 'Compromissos abertos', level: payable > cashBalance && payable > 0 ? 'status-critical' : payable > 0 ? 'status-warning' : 'status-good' },
+    { icon: '🎯', label: 'Meta mensal', value: `${Math.round(goalProgress)}%`, detail: money(MONTHLY_REVENUE_GOAL), level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical' },
+    { icon: '📊', label: 'Ticket médio', value: money(averageTicket), detail: 'Média por venda', level: averageTicket > 0 ? 'status-good' : 'status-warning' }
+  ].map(card => `
+    <article class="executive-card ${card.level}">
+      <div class="card-icon">${card.icon}</div>
+      <span>${escapeHtml(card.label)}</span>
+      <strong>${escapeHtml(card.value)}</strong>
+      <small>${escapeHtml(card.detail)}</small>
+    </article>
+  `).join('');
 
   document.querySelector('#cfoHighlights').innerHTML = [
-    { title: 'Margem bruta estimada', detail: salesMonth > 0 ? `${Math.round((grossProfitMonth / salesMonth) * 100)}% sobre o vendido no mes` : 'Sem vendas no mes' },
-    { title: 'Capital comprometido', detail: `${money(payable)} em contas a pagar abertas` },
-    { title: 'Recebiveis pendentes', detail: `${money(receivable)} aguardando recebimento` },
-    { title: 'Operacao', detail: `${productionOrders} pedido(s) em producao e ${deliveredOrders} entregue(s)` }
+    { title: 'Margem bruta estimada', detail: salesMonth > 0 ? `${Math.round((grossProfitMonth / salesMonth) * 100)}% sobre o vendido no mes` : 'Sem vendas no mes', level: grossProfitMonth >= 0 ? 'status-good' : 'status-critical' },
+    { title: 'Capital comprometido', detail: `${money(payable)} em contas a pagar abertas`, level: payable > cashBalance && payable > 0 ? 'status-critical' : 'status-warning' },
+    { title: 'Recebiveis pendentes', detail: `${money(receivable)} aguardando recebimento`, level: receivable > 0 ? 'status-warning' : 'status-good' },
+    { title: 'Operacao', detail: `${productionOrders} pedido(s) em producao e ${deliveredOrders} entregue(s)`, level: productionOrders > 0 ? 'status-warning' : 'status-good' }
   ].map(item => `
-    <div class="stack-item">
+    <div class="stack-item ${item.level}">
       <strong>${escapeHtml(item.title)}</strong>
       <span>${escapeHtml(item.detail)}</span>
     </div>
   `).join('');
 
-  const alerts = data.inventoryItems.filter(item => Number(item.minStock) > 0 && Number(item.quantity) <= Number(item.minStock));
+  const alerts = getSmartDashboardAlerts(lowStockItems, goalProgress);
   document.querySelector('#stockAlerts').innerHTML = alerts.length
-    ? alerts.map(item => `<div class="stack-item"><strong>${escapeHtml(item.name)}</strong><span>Estoque atual: ${formatQuantity(item)} | minimo: ${item.minStock} ${escapeHtml(item.unit || '')}</span></div>`).join('')
-    : '<div class="empty">Nenhum item abaixo do estoque minimo.</div>';
+    ? alerts.map(alert => `<div class="stack-item ${alert.level}"><strong>${escapeHtml(alert.title)}</strong><span>${escapeHtml(alert.detail)}</span></div>`).join('')
+    : '<div class="empty">Nenhum aviso importante no momento.</div>';
+
+  renderDashboardCharts();
+}
+
+function formatDashboardDateTime() {
+  return new Date().toLocaleString('pt-BR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getDailyFinancialStatus(cashBalance, receivable, payable, goalProgress) {
+  if (cashBalance < 0 || (payable > cashBalance && payable > receivable + cashBalance)) {
+    return { title: 'Crítica', detail: 'Contas a pagar exigem prioridade.', level: 'status-critical' };
+  }
+
+  if (goalProgress < getExpectedGoalProgress() || payable > cashBalance || receivable > 0) {
+    return { title: 'Atenção', detail: 'Acompanhe meta, recebíveis e vencimentos.', level: 'status-warning' };
+  }
+
+  return { title: 'Boa', detail: 'Caixa positivo e operação sob controle.', level: 'status-good' };
+}
+
+function getExpectedGoalProgress() {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return (now.getDate() / daysInMonth) * 100;
+}
+
+function getSmartDashboardAlerts(lowStockItems, goalProgress) {
+  const todayDate = new Date(`${today()}T00:00:00`);
+  const nextWeek = new Date(todayDate);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  const overdueLimit = new Date(todayDate);
+  overdueLimit.setDate(overdueLimit.getDate() - 7);
+
+  const duePayables = data.payables.filter(item => {
+    if (item.status === 'Paga' || !item.dueDate) return false;
+    const dueDate = new Date(`${item.dueDate}T00:00:00`);
+    return dueDate >= todayDate && dueDate <= nextWeek;
+  });
+  const lateOrders = data.sales.filter(sale => {
+    if (sale.status !== 'Em producao' || !sale.date) return false;
+    return new Date(`${sale.date}T00:00:00`) < overdueLimit;
+  });
+  const alerts = [];
+
+  if (lowStockItems.length) {
+    alerts.push({
+      title: 'Estoque baixo',
+      detail: `${lowStockItems.length} item(ns) abaixo ou no estoque minimo: ${lowStockItems.slice(0, 3).map(item => item.name).join(', ')}`,
+      level: 'status-warning'
+    });
+  }
+
+  if (duePayables.length) {
+    alerts.push({
+      title: 'Contas vencendo',
+      detail: `${duePayables.length} conta(s) vencem nos proximos 7 dias, total de ${money(sumValues(duePayables))}.`,
+      level: 'status-warning'
+    });
+  }
+
+  if (goalProgress < getExpectedGoalProgress()) {
+    alerts.push({
+      title: 'Meta abaixo do esperado',
+      detail: `Progresso atual de ${Math.round(goalProgress)}% contra ${Math.round(getExpectedGoalProgress())}% esperado para hoje.`,
+      level: 'status-critical'
+    });
+  }
+
+  if (lateOrders.length) {
+    alerts.push({
+      title: 'Pedidos atrasados',
+      detail: `${lateOrders.length} pedido(s) em producao ha mais de 7 dias.`,
+      level: 'status-critical'
+    });
+  }
+
+  return alerts;
+}
+
+function renderDashboardCharts() {
+  if (!window.Chart) return;
+
+  const months = getLastTwelveMonths();
+  const revenue = months.map(month => sumValues(data.sales.filter(sale => matchesMonth(sale.date, month.value))));
+  const profit = months.map(month => data.sales
+    .filter(sale => matchesMonth(sale.date, month.value))
+    .reduce((total, sale) => {
+      const saleProfit = calculateSaleProfit(sale);
+      return saleProfit === null ? total : total + saleProfit;
+    }, 0));
+  const cashIn = months.map(month => sumValues(data.cash.filter(item => item.type === 'Entrada' && matchesMonth(item.date, month.value))));
+  const cashOut = months.map(month => sumValues(data.cash.filter(item => item.type === 'Saida' && matchesMonth(item.date, month.value))));
+  const categoryRows = getSalesByCategory();
+  const topProducts = rankProductsBySales(data.sales).slice(0, 6);
+
+  upsertDashboardChart('revenueChart', 'bar', {
+    labels: months.map(month => month.label),
+    datasets: [{ label: 'Faturamento', data: revenue, backgroundColor: '#0d9488', borderRadius: 8 }]
+  });
+  upsertDashboardChart('profitChart', 'line', {
+    labels: months.map(month => month.label),
+    datasets: [{ label: 'Lucro', data: profit, borderColor: '#2d6cdf', backgroundColor: 'rgba(45, 108, 223, .12)', fill: true, tension: .35 }]
+  });
+  upsertDashboardChart('categoryChart', 'doughnut', {
+    labels: categoryRows.map(item => item.category),
+    datasets: [{ data: categoryRows.map(item => item.total), backgroundColor: ['#0d9488', '#2d6cdf', '#f5b84b', '#b43838', '#7c3aed'] }]
+  });
+  upsertDashboardChart('cashFlowChart', 'bar', {
+    labels: months.map(month => month.label),
+    datasets: [
+      { label: 'Entradas', data: cashIn, backgroundColor: '#0d9488', borderRadius: 8 },
+      { label: 'Saidas', data: cashOut, backgroundColor: '#b43838', borderRadius: 8 }
+    ]
+  });
+  upsertDashboardChart('topProductsChart', 'bar', {
+    labels: topProducts.map(item => item.name),
+    datasets: [{ label: 'Quantidade vendida', data: topProducts.map(item => item.quantity), backgroundColor: '#f5b84b', borderRadius: 8 }]
+  }, { indexAxis: 'y' });
+}
+
+function upsertDashboardChart(canvasId, type, dataConfig, extraOptions = {}) {
+  const canvas = document.querySelector(`#${canvasId}`);
+  if (!canvas) return;
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { boxWidth: 12, color: '#657180' } }
+    },
+    scales: type === 'doughnut' ? undefined : {
+      x: { grid: { display: false }, ticks: { color: '#657180' } },
+      y: { beginAtZero: true, grid: { color: '#edf1f4' }, ticks: { color: '#657180' } }
+    },
+    ...extraOptions
+  };
+
+  if (dashboardCharts[canvasId]) {
+    dashboardCharts[canvasId].data = dataConfig;
+    dashboardCharts[canvasId].options = options;
+    dashboardCharts[canvasId].update();
+    return;
+  }
+
+  dashboardCharts[canvasId] = new Chart(canvas, {
+    type,
+    data: dataConfig,
+    options
+  });
+}
+
+function getLastTwelveMonths() {
+  const formatter = new Intl.DateTimeFormat('pt-BR', { month: 'short' });
+  const now = new Date();
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1);
+    return {
+      value: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      label: formatter.format(date).replace('.', '')
+    };
+  });
+}
+
+function getSalesByCategory() {
+  const ranking = new Map();
+  data.sales.forEach(sale => {
+    const product = productById(sale.productId);
+    const category = product ? product.category || 'Sem categoria' : 'Sem categoria';
+    ranking.set(category, (ranking.get(category) || 0) + Number(sale.value || 0));
+  });
+  return Array.from(ranking, ([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
 }
 
 function renderReports() {

@@ -117,6 +117,10 @@ app.post('/api/admin/users', requireAuth, requireAdmin, asyncHandler(async (requ
 
 app.get('/', serveIndex);
 app.get('/index.html', serveIndex);
+app.get('/vendor/chart.umd.js', (request, response) => {
+  response.type('application/javascript');
+  response.sendFile(path.resolve(publicDir, 'node_modules', 'chart.js', 'dist', 'chart.umd.js'));
+});
 
 app.use(express.static(publicDir, {
   extensions: ['html'],
