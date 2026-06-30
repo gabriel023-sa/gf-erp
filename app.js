@@ -4,6 +4,30 @@ const LOCAL_MIGRATION_KEY = 'gf-erp-local-migrated-v1';
 const API_BASE_URL = window.GF_ERP_API_BASE || '';
 const MONTHLY_REVENUE_GOAL = 10000;
 const COST_WARNING_TEXT = 'Atenção: há vendas com custo não informado. O lucro pode estar superestimado.';
+const defaultCompanySettings = {
+  legalName: 'GF Impressao 3D',
+  tradeName: 'GF Impressao 3D',
+  document: '',
+  phone: '',
+  email: '',
+  instagram: '@gfimpressao3d',
+  address: '',
+  cityState: '',
+  logoUrl: '',
+  primaryColor: '#0d9488',
+  secondaryColor: '#f5b84b',
+  monthlyRevenueGoal: 10000,
+  responsibleName: 'Gabriel',
+  displayName: 'GF ERP',
+  theme: 'auto'
+};
+const menuGroups = [
+  { title: 'Gestao', modules: ['dashboard', 'reports', 'aiCfo'] },
+  { title: 'Comercial', modules: ['sales', 'quotes', 'clients', 'products', 'sellers'] },
+  { title: 'Financeiro', modules: ['cash', 'payables', 'receivables'] },
+  { title: 'Producao', modules: ['stock', 'production'] },
+  { title: 'Administracao', modules: ['settings'] }
+];
 const filteredModules = new Set(['sales', 'cash', 'payables', 'receivables']);
 const mobileCardModules = new Set(['sales', 'stock', 'cash', 'payables', 'receivables', 'quotes', 'production', 'sellers']);
 const viewPermissions = {
@@ -303,6 +327,7 @@ const labels = {
 };
 
 const emptyData = {
+  companySettings: structuredClone(defaultCompanySettings),
   sales: [],
   quotes: [],
   clients: [],
@@ -319,6 +344,7 @@ const emptyData = {
 };
 
 const sampleData = {
+  companySettings: structuredClone(defaultCompanySettings),
   clients: [
     { id: 'c1', name: 'Ana Paula', phone: '(11) 99999-1000', email: 'ana@email.com', document: '123.456.789-00', address: 'Sao Paulo, SP' },
     { id: 'c2', name: 'Loja Maker', phone: '(11) 3333-2211', email: 'compras@lojamaker.com', document: '12.345.678/0001-90', address: 'Santo Andre, SP' }
@@ -414,6 +440,9 @@ const aiCfoMessagesContainer = document.querySelector('#aiCfoMessages');
 const analyzeCompanyButton = document.querySelector('#analyzeCompany');
 const aiQuickQuestions = document.querySelector('#aiQuickQuestions');
 const userForm = document.querySelector('#userForm');
+const companySettingsForm = document.querySelector('#companySettingsForm');
+const globalSearchInput = document.querySelector('#globalSearch');
+const globalSearchResults = document.querySelector('#globalSearchResults');
 
 init();
 
@@ -425,6 +454,7 @@ async function init() {
   bindAiCfoActions();
   registerServiceWorker();
   setupInstallPrompt();
+  setInterval(() => updateHeaderStatus(Number(document.querySelector('#notificationBadge')?.textContent.split(' ')[0] || 0)), 60000);
 
   if (!authToken) {
     showLogin();
@@ -444,12 +474,23 @@ function renderMenu() {
   if (!visibleModules.some(module => module.id === activeModule)) {
     activeModule = visibleModules[0] ? visibleModules[0].id : 'dashboard';
   }
-  menu.innerHTML = visibleModules.map(module => `
-    <button type="button" data-view="${module.id}" class="${module.id === activeModule ? 'active' : ''}">
-      <span class="nav-icon">${module.icon}</span>
-      <span>${module.title}</span>
-    </button>
-  `).join('');
+  menu.innerHTML = menuGroups.map(group => {
+    const groupModules = group.modules
+      .map(id => visibleModules.find(module => module.id === id))
+      .filter(Boolean);
+    if (!groupModules.length) return '';
+    return `
+      <div class="menu-group">
+        <span>${escapeHtml(group.title)}</span>
+        ${groupModules.map(module => `
+          <button type="button" data-view="${module.id}" class="${module.id === activeModule ? 'active' : ''}">
+            <span class="nav-icon">${module.icon}</span>
+            <span>${module.title}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
 
   menu.querySelectorAll('button').forEach(button => {
     button.addEventListener('click', () => openView(button.dataset.view));
@@ -474,6 +515,7 @@ function bindActions() {
   document.querySelector('#seedData').addEventListener('click', () => {
     if (!confirm('Restaurar os dados de exemplo? Os dados atuais serao substituidos.')) return;
     data = structuredClone(sampleData);
+    applyCompanyBranding();
     persist();
     renderAll();
     showToast('Dados de exemplo restaurados.');
@@ -482,6 +524,7 @@ function bindActions() {
   document.querySelector('#clearData').addEventListener('click', () => {
     if (!confirm('Limpar todos os dados do GF ERP?')) return;
     data = structuredClone(emptyData);
+    applyCompanyBranding();
     persist();
     renderAll();
     showToast('Dados limpos.');
@@ -502,6 +545,12 @@ function bindActions() {
   document.querySelector('#cancelUserForm')?.addEventListener('click', closeUserEditor);
   document.querySelector('#cancelUserFormBottom')?.addEventListener('click', closeUserEditor);
   userForm?.addEventListener('submit', saveUser);
+  companySettingsForm?.addEventListener('submit', saveCompanySettings);
+  document.querySelector('#settingsShortcut')?.addEventListener('click', () => openView('settings'));
+  globalSearchInput?.addEventListener('input', renderGlobalSearch);
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.global-search')) globalSearchResults?.classList.add('hidden');
+  });
   document.querySelector('#installApp').addEventListener('click', installPwa);
   refreshAppButton.addEventListener('click', activateWaitingServiceWorker);
 
@@ -565,6 +614,7 @@ async function startAuthenticatedApp() {
   const session = await apiRequest('/api/auth/me');
   currentUser = session.user;
   await loadRemoteData();
+  applyCompanyBranding();
   await loadAdminSettings();
   await offerLocalMigration();
   showApp();
@@ -576,6 +626,7 @@ async function startAuthenticatedApp() {
 
 function showLogin(message = '') {
   document.body.classList.add('auth-required');
+  applyCompanyBranding();
   loginMessage.textContent = message;
 }
 
@@ -611,6 +662,40 @@ function hasPermission(permission) {
   if (!currentUser) return false;
   if (currentUser.role === 'admin' || currentUser.profile === 'admin') return true;
   return Array.isArray(currentUser.permissions) && currentUser.permissions.includes(permission);
+}
+
+function getCompanySettings() {
+  return { ...defaultCompanySettings, ...(data.companySettings || {}) };
+}
+
+function getMonthlyRevenueGoal() {
+  return Number(getCompanySettings().monthlyRevenueGoal || MONTHLY_REVENUE_GOAL);
+}
+
+function applyCompanyBranding() {
+  const company = getCompanySettings();
+  document.documentElement.style.setProperty('--accent', company.primaryColor || defaultCompanySettings.primaryColor);
+  document.documentElement.style.setProperty('--accent-strong', company.primaryColor || defaultCompanySettings.primaryColor);
+  document.documentElement.style.setProperty('--gold', company.secondaryColor || defaultCompanySettings.secondaryColor);
+  document.body.dataset.theme = resolveTheme(company.theme);
+  document.title = `${company.displayName || 'GF ERP'} - ${company.tradeName || company.legalName}`;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', company.primaryColor || '#111827');
+  document.querySelectorAll('[data-company-name]').forEach(element => {
+    element.textContent = company.tradeName || company.legalName || 'GF Impressao 3D';
+  });
+  document.querySelectorAll('[data-company-display]').forEach(element => {
+    element.textContent = company.displayName || 'GF ERP';
+  });
+  document.querySelectorAll('[data-company-logo]').forEach(element => {
+    element.innerHTML = company.logoUrl
+      ? `<img src="${escapeHtml(company.logoUrl)}" alt="${escapeHtml(company.tradeName || 'GF')}">`
+      : 'GF';
+  });
+}
+
+function resolveTheme(theme) {
+  if (theme === 'dark' || theme === 'light') return theme;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function canViewModule(module) {
@@ -886,6 +971,9 @@ function renderTable(moduleId) {
   target.querySelectorAll('[data-create-production]').forEach(button => {
     button.addEventListener('click', () => createProductionFromSaleId(button.dataset.createProduction));
   });
+  target.querySelectorAll('[data-export-quote]').forEach(button => {
+    button.addEventListener('click', () => exportQuotePdf(button.dataset.exportQuote));
+  });
 }
 
 function renderRowActions(moduleId, row) {
@@ -907,6 +995,10 @@ function renderRowActions(moduleId, row) {
 
   if (moduleId === 'quotes' && row.status === 'Aprovado' && !row.convertedSaleId) {
     baseActions.unshift(`<button class="mini-button convert" type="button" title="Transformar em venda" data-convert-quote="${row.id}">Vender</button>`);
+  }
+
+  if (moduleId === 'quotes' && hasPermission('special:exportPdf')) {
+    baseActions.unshift(`<button class="mini-button" type="button" title="Exportar PDF" data-export-quote="${row.id}">PDF</button>`);
   }
 
   if (moduleId === 'quotes' && row.convertedSaleId) {
@@ -956,6 +1048,8 @@ function setDefaultMonthFilters() {
 }
 
 function renderDashboard() {
+  const company = getCompanySettings();
+  const monthlyGoal = getMonthlyRevenueGoal();
   const cashBalance = sumCash('Entrada') - sumCash('Saida');
   const monthlySales = data.sales.filter(sale => isCurrentMonth(sale.date));
   const salesMonth = monthlySales.reduce((total, sale) => total + Number(sale.value || 0), 0);
@@ -971,8 +1065,8 @@ function renderDashboard() {
     .reduce((total, item) => total + Number(item.value || 0), 0);
   const productionOrders = data.sales.filter(sale => sale.status === 'Em producao').length;
   const deliveredOrders = data.sales.filter(sale => sale.status === 'Entregue').length;
-  const goalProgress = Math.min((salesMonth / MONTHLY_REVENUE_GOAL) * 100, 100);
-  const goalRemaining = Math.max(MONTHLY_REVENUE_GOAL - salesMonth, 0);
+  const goalProgress = Math.min((salesMonth / monthlyGoal) * 100, 100);
+  const goalRemaining = Math.max(monthlyGoal - salesMonth, 0);
   const commissionsMonth = monthlySales.reduce((total, sale) => total + calculateSaleCommission(sale), 0);
   const expensesMonth = data.payables
     .filter(item => isCurrentMonth(item.dueDate))
@@ -999,6 +1093,7 @@ function renderDashboard() {
   const bestSeller = sellerRanking[0];
 
   setText('dashboardDateTime', formatDashboardDateTime());
+  setText('dashboard-title', `Bom dia, ${currentUser ? currentUser.name.split(' ')[0] : company.responsibleName}.`);
   setText('metricGoalProgress', `${Math.round(goalProgress)}%`);
   setText('metricGoalRemaining', goalRemaining > 0
     ? `Faltam ${money(goalRemaining)} para bater a meta`
@@ -1020,7 +1115,7 @@ function renderDashboard() {
     { icon: '📦', label: 'Estoque', value: `${lowStockItems.length}`, detail: 'Itens em atenção', level: lowStockItems.length ? 'status-warning' : 'status-good' },
     { icon: '🧾', label: 'Contas a receber', value: money(receivable), detail: 'Valores em aberto', level: receivable > 0 ? 'status-warning' : 'status-good' },
     { icon: '💸', label: 'Contas a pagar', value: money(payable), detail: 'Compromissos abertos', level: payable > cashBalance && payable > 0 ? 'status-critical' : payable > 0 ? 'status-warning' : 'status-good' },
-    { icon: '🎯', label: 'Meta mensal', value: `${Math.round(goalProgress)}%`, detail: money(MONTHLY_REVENUE_GOAL), level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical' },
+    { icon: '🎯', label: 'Meta mensal', value: `${Math.round(goalProgress)}%`, detail: money(monthlyGoal), level: goalProgress >= 70 ? 'status-good' : goalProgress >= 40 ? 'status-warning' : 'status-critical', link: 'reports' },
     { icon: '📊', label: 'Ticket médio', value: money(averageTicket), detail: 'Média por venda', level: averageTicket > 0 ? 'status-good' : 'status-warning' },
     { icon: 'OP', label: 'Produção hoje', value: String(productionToday), detail: 'Pedidos ativos iniciados hoje', level: productionToday ? 'status-warning' : 'status-good' },
     { icon: 'AT', label: 'Pedidos atrasados', value: String(lateProduction.length), detail: 'Prazos vencidos', level: lateProduction.length ? 'status-critical' : 'status-good' },
@@ -1031,7 +1126,7 @@ function renderDashboard() {
     { icon: 'MV', label: 'Melhor vendedor', value: bestSeller ? bestSeller.name : 'Sem dados', detail: bestSeller ? money(bestSeller.totalSold) : 'Nenhuma venda no mes', level: bestSeller ? 'status-good' : 'status-warning' },
     { icon: 'RK', label: 'Ranking vendedores', value: String(sellerRanking.length), detail: sellerRanking.slice(0, 3).map(item => item.name).join(', ') || 'Sem ranking', level: sellerRanking.length ? 'status-good' : 'status-warning' }
   ].map(card => `
-    <article class="executive-card ${card.level}">
+    <article class="executive-card ${card.level} ${card.link ? 'clickable-card' : ''}" ${card.link ? `data-dashboard-link="${card.link}"` : ''}>
       <div class="card-icon">${card.icon}</div>
       <span>${escapeHtml(card.label)}</span>
       <strong>${escapeHtml(card.value)}</strong>
@@ -1057,6 +1152,14 @@ function renderDashboard() {
   document.querySelector('#stockAlerts').innerHTML = alerts.length
     ? alerts.map(alert => `<div class="stack-item ${alert.level}"><strong>${escapeHtml(alert.title)}</strong><span>${escapeHtml(alert.detail)}</span></div>`).join('')
     : '<div class="empty">Nenhum aviso importante no momento.</div>';
+
+  renderDailySummary(salesMonth, monthlySales.length, cashBalance, receivable, payable, productionToday);
+  renderPriorityActions();
+  renderDashboardAiSuggestion(goalProgress, cashBalance, payable, receivable);
+  updateHeaderStatus(alerts.length);
+  document.querySelectorAll('[data-dashboard-link]').forEach(card => {
+    card.addEventListener('click', () => openView(card.dataset.dashboardLink));
+  });
 
   renderDashboardCharts();
 }
@@ -1142,6 +1245,75 @@ function getSmartDashboardAlerts(lowStockItems, goalProgress) {
   }
 
   return alerts;
+}
+
+function renderDailySummary(salesMonth, salesCount, cashBalance, receivable, payable, productionToday) {
+  const target = document.querySelector('#dailySummary');
+  if (!target) return;
+  const todaySales = data.sales.filter(sale => sale.date === today());
+  const todayCashIn = data.cash.filter(item => item.date === today() && item.type === 'Entrada');
+  const todayCashOut = data.cash.filter(item => item.date === today() && item.type === 'Saida');
+  target.innerHTML = [
+    { title: 'Vendas hoje', detail: `${todaySales.length} venda(s), total de ${money(sumValues(todaySales))}`, level: todaySales.length ? 'status-good' : 'status-warning' },
+    { title: 'Caixa hoje', detail: `${money(sumValues(todayCashIn))} entrando e ${money(sumValues(todayCashOut))} saindo`, level: sumValues(todayCashIn) >= sumValues(todayCashOut) ? 'status-good' : 'status-warning' },
+    { title: 'Mês atual', detail: `${salesCount} venda(s), ${money(salesMonth)} faturados`, level: salesMonth > 0 ? 'status-good' : 'status-warning' },
+    { title: 'Operação', detail: `${productionToday} pedido(s) iniciados hoje; saldo ${hasPermission('special:viewCash') ? money(cashBalance) : 'restrito'}`, level: payable > receivable + cashBalance ? 'status-critical' : 'status-good' }
+  ].map(item => `<div class="stack-item ${item.level}"><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.detail)}</span></div>`).join('');
+}
+
+function renderPriorityActions() {
+  const target = document.querySelector('#priorityActions');
+  if (!target) return;
+  const actions = getPriorityActions();
+  target.innerHTML = actions.length
+    ? actions.map(action => `<button class="priority-action ${action.level}" type="button" data-priority-view="${action.view}"><strong>${escapeHtml(action.title)}</strong><span>${escapeHtml(action.detail)}</span></button>`).join('')
+    : '<div class="empty">Nenhuma ação urgente agora.</div>';
+  target.querySelectorAll('[data-priority-view]').forEach(button => {
+    button.addEventListener('click', () => openView(button.dataset.priorityView));
+  });
+}
+
+function getPriorityActions() {
+  const now = new Date(`${today()}T00:00:00`);
+  const actions = [];
+  data.receivables
+    .filter(item => item.status !== 'Recebida' && item.dueDate && new Date(`${item.dueDate}T00:00:00`) < now)
+    .slice(0, 2)
+    .forEach(item => actions.push({ title: 'Cobrar cliente com conta vencida', detail: `${nameById('clients', item.clientId)} - ${money(item.value)}`, view: 'receivables', level: 'status-critical' }));
+  data.inventoryItems
+    .filter(item => getStockLevel(item).className === 'critical-stock')
+    .slice(0, 2)
+    .forEach(item => actions.push({ title: 'Comprar item com estoque crítico', detail: `${item.name}: ${formatQuantity(item)}`, view: 'stock', level: 'status-critical' }));
+  data.production
+    .filter(isProductionLate)
+    .slice(0, 2)
+    .forEach(order => actions.push({ title: 'Entregar pedido atrasado', detail: `${order.orderNumber} - ${nameById('clients', order.clientId)}`, view: 'production', level: 'status-critical' }));
+  data.payables
+    .filter(item => item.status !== 'Paga' && item.dueDate === today())
+    .slice(0, 2)
+    .forEach(item => actions.push({ title: 'Pagar conta vencendo hoje', detail: `${item.description} - ${money(item.value)}`, view: 'payables', level: 'status-warning' }));
+  return actions.slice(0, 6);
+}
+
+function renderDashboardAiSuggestion(goalProgress, cashBalance, payable, receivable) {
+  const target = document.querySelector('#dashboardAiSuggestion');
+  if (!target) return;
+  const suggestion = goalProgress < getExpectedGoalProgress()
+    ? 'A meta está abaixo do ritmo esperado. Priorize orçamentos aprovados, vendas de maior ticket e cobrança de recebíveis vencidos.'
+    : payable > cashBalance
+    ? 'O caixa pede atenção: revise contas a pagar próximas e antecipe recebimentos quando possível.'
+    : receivable > 0
+    ? 'Há valores a receber. Uma rotina diária de cobrança melhora previsibilidade de caixa.'
+    : 'Operação estável. Mantenha acompanhamento de estoque crítico e produção atrasada.';
+  target.innerHTML = `<div class="stack-item status-good"><strong>IA CFO recomenda</strong><span>${escapeHtml(suggestion)}</span></div>`;
+}
+
+function updateHeaderStatus(alertCount = 0) {
+  setText('topbarClock', formatDashboardDateTime());
+  const company = getCompanySettings();
+  setText('currentUserBadge', currentUser ? `${currentUser.name} | ${formatProfile(currentUser.profile)}` : 'Usuário');
+  setText('notificationBadge', `${alertCount} aviso(s)`);
+  document.querySelector('[data-company-name]')?.setAttribute('title', company.legalName || company.tradeName);
 }
 
 function renderDashboardCharts() {
@@ -1420,8 +1592,85 @@ async function loadAdminSettings() {
 }
 
 function renderSettings() {
+  renderCompanySettings();
   renderUsersAccess();
   renderAuditLog();
+}
+
+function renderCompanySettings() {
+  if (!companySettingsForm) return;
+  const company = getCompanySettings();
+  Object.entries(company).forEach(([key, value]) => {
+    if (companySettingsForm.elements[key]) {
+      companySettingsForm.elements[key].value = value ?? '';
+    }
+  });
+}
+
+function saveCompanySettings(event) {
+  event.preventDefault();
+  if (!hasPermission('view:settings')) return alert('Sem permissao para alterar configuracoes.');
+  const form = new FormData(companySettingsForm);
+  data.companySettings = {
+    ...getCompanySettings(),
+    legalName: form.get('legalName') || defaultCompanySettings.legalName,
+    tradeName: form.get('tradeName') || defaultCompanySettings.tradeName,
+    document: form.get('document') || '',
+    phone: form.get('phone') || '',
+    email: form.get('email') || '',
+    instagram: form.get('instagram') || '',
+    address: form.get('address') || '',
+    cityState: form.get('cityState') || '',
+    logoUrl: form.get('logoUrl') || '',
+    primaryColor: form.get('primaryColor') || defaultCompanySettings.primaryColor,
+    secondaryColor: form.get('secondaryColor') || defaultCompanySettings.secondaryColor,
+    monthlyRevenueGoal: Number(form.get('monthlyRevenueGoal') || MONTHLY_REVENUE_GOAL),
+    responsibleName: form.get('responsibleName') || '',
+    displayName: form.get('displayName') || 'GF ERP',
+    theme: form.get('theme') || 'auto'
+  };
+  applyCompanyBranding();
+  persist();
+  renderAll();
+  showToast('Dados da empresa salvos.');
+}
+
+function renderGlobalSearch() {
+  if (!globalSearchInput || !globalSearchResults) return;
+  const term = normalizeText(globalSearchInput.value);
+  if (term.length < 2) {
+    globalSearchResults.classList.add('hidden');
+    globalSearchResults.innerHTML = '';
+    return;
+  }
+  const results = buildGlobalSearchResults(term).slice(0, 8);
+  globalSearchResults.innerHTML = results.length
+    ? results.map(result => `<button type="button" data-search-view="${result.view}"><strong>${escapeHtml(result.title)}</strong><span>${escapeHtml(result.detail)}</span></button>`).join('')
+    : '<div class="empty search-empty">Nenhum resultado encontrado.</div>';
+  globalSearchResults.classList.remove('hidden');
+  globalSearchResults.querySelectorAll('[data-search-view]').forEach(button => {
+    button.addEventListener('click', () => {
+      globalSearchInput.value = '';
+      globalSearchResults.classList.add('hidden');
+      openView(button.dataset.searchView);
+    });
+  });
+}
+
+function buildGlobalSearchResults(term) {
+  const results = [];
+  data.clients.forEach(item => pushSearchResult(results, term, 'clients', item.name, item.phone || item.email || 'Cliente'));
+  data.products.forEach(item => pushSearchResult(results, term, 'products', item.name, item.category || 'Produto'));
+  data.sales.forEach(item => pushSearchResult(results, term, 'sales', `${nameById('clients', item.clientId)} ${nameById('products', item.productId)}`, `${formatDate(item.date)} - ${money(item.value)}`));
+  data.production.forEach(item => pushSearchResult(results, term, 'production', `${item.orderNumber} ${nameById('clients', item.clientId)}`, `${nameById('products', item.productId)} - ${item.status}`));
+  data.payables.forEach(item => pushSearchResult(results, term, 'payables', `${item.supplier} ${item.description}`, `${formatDate(item.dueDate)} - ${money(item.value)}`));
+  data.receivables.forEach(item => pushSearchResult(results, term, 'receivables', `${nameById('clients', item.clientId)} ${item.description}`, `${formatDate(item.dueDate)} - ${money(item.value)}`));
+  return results.filter(result => canViewModule({ id: result.view }));
+}
+
+function pushSearchResult(results, term, view, title, detail) {
+  if (!normalizeText(`${title} ${detail}`).includes(term)) return;
+  results.push({ view, title, detail });
 }
 
 function renderUsersAccess() {
@@ -1674,8 +1923,7 @@ function formatCommissionPayment(commission) {
 function exportCommissionsPdf() {
   const report = getCommissionReportData();
   const lines = [
-    'GF ERP - Relatorio de comissoes',
-    `Gerado em: ${formatDate(today())}`,
+    ...pdfHeader('Relatorio de comissoes'),
     `Periodo: ${document.querySelector('#commissionsFilterMonth')?.value || 'Todos os periodos'}`,
     '',
     'Resumo',
@@ -1693,7 +1941,8 @@ function exportCommissionsPdf() {
     ...formatRankingLines(report.byProduct, item => `${item.name} - ${money(item.totalCommission)} - ${money(item.totalSold)} vendido`),
     '',
     'Comissao por cliente',
-    ...formatRankingLines(report.byClient, item => `${item.name} - ${money(item.totalCommission)} - ${money(item.totalSold)} vendido`)
+    ...formatRankingLines(report.byClient, item => `${item.name} - ${money(item.totalCommission)} - ${money(item.totalSold)} vendido`),
+    ...pdfFooter()
   ];
   const blob = createSimplePdf(lines);
   const link = document.createElement('a');
@@ -1794,12 +2043,12 @@ function answerAiCfoQuestion(question) {
     return `Você vendeu ${money(context.salesToday)} hoje. Foram ${context.salesTodayCount} venda(s) registradas.`;
   }
   if (includesAny(normalized, ['vendi este mes', 'vendas este mes', 'faturamento do mes', 'faturei este mes'])) {
-    return `Você vendeu ${money(context.salesMonth)} este mês. A meta mensal é ${money(MONTHLY_REVENUE_GOAL)}.`;
+    return `Você vendeu ${money(context.salesMonth)} este mês. A meta mensal é ${money(getMonthlyRevenueGoal())}.`;
   }
   if (includesAny(normalized, ['falta para bater', 'falta para atingir', 'meta'])) {
     return context.goalRemaining > 0
       ? `Faltam ${money(context.goalRemaining)} para atingir a meta mensal. O progresso atual é de ${Math.round(context.goalProgress)}%.`
-      : `Meta mensal atingida. Você já passou da meta em ${money(context.salesMonth - MONTHLY_REVENUE_GOAL)}.`;
+      : `Meta mensal atingida. Você já passou da meta em ${money(context.salesMonth - getMonthlyRevenueGoal())}.`;
   }
   if (includesAny(normalized, ['caixa', 'saldo'])) return `Seu saldo em caixa é ${money(context.cashBalance)}.`;
   if (includesAny(normalized, ['para receber', 'a receber', 'receber'])) return `Você tem ${money(context.receivable)} em contas a receber abertas.`;
@@ -1866,8 +2115,8 @@ function buildAiCfoContext() {
     netProfitMonth: grossProfitMonth
       - monthlySales.reduce((total, sale) => total + calculateSaleCommission(sale), 0)
       - data.payables.filter(item => isCurrentMonth(item.dueDate)).reduce((total, item) => total + Number(item.value || 0), 0),
-    goalProgress: Math.min((salesMonth / MONTHLY_REVENUE_GOAL) * 100, 100),
-    goalRemaining: Math.max(MONTHLY_REVENUE_GOAL - salesMonth, 0),
+    goalProgress: Math.min((salesMonth / getMonthlyRevenueGoal()) * 100, 100),
+    goalRemaining: Math.max(getMonthlyRevenueGoal() - salesMonth, 0),
     payable,
     receivable,
     cashBalance,
@@ -1979,8 +2228,7 @@ function formatAiResponse(content) {
 function exportMonthlyReportPdf() {
   const report = getMonthlyReportData();
   const lines = [
-    'GF ERP - Relatorio mensal',
-    `Gerado em: ${formatDate(today())}`,
+    ...pdfHeader('Relatorio financeiro mensal'),
     `Periodo: ${report.monthLabel}`,
     '',
     'Resumo financeiro',
@@ -1996,7 +2244,11 @@ function exportMonthlyReportPdf() {
     ...formatRankingLines(report.topProducts, item => `${item.name} - ${item.quantity} un - ${money(item.total)}`),
     '',
     'Clientes que mais compraram',
-    ...formatRankingLines(report.topClients, item => `${item.name} - ${item.count} compra(s) - ${money(item.total)}`)
+    ...formatRankingLines(report.topClients, item => `${item.name} - ${item.count} compra(s) - ${money(item.total)}`),
+    '',
+    'Relatorio de vendas',
+    ...formatRankingLines(report.sales, sale => `${formatDate(sale.date)} - ${nameById('clients', sale.clientId)} - ${nameById('products', sale.productId)} - ${money(sale.value)}`),
+    ...pdfFooter()
   ];
 
   const blob = createSimplePdf(lines);
@@ -2006,6 +2258,56 @@ function exportMonthlyReportPdf() {
   link.click();
   URL.revokeObjectURL(link.href);
   showToast('Relatorio PDF exportado.');
+}
+
+function exportQuotePdf(quoteId) {
+  const quote = data.quotes.find(item => item.id === quoteId);
+  if (!quote) return;
+  const lines = [
+    ...pdfHeader('Orcamento para cliente'),
+    `Cliente: ${quote.clientName}`,
+    `Telefone: ${quote.phone}`,
+    `Produto: ${nameById('products', quote.productId)}`,
+    `Quantidade: ${quote.quantity}`,
+    `Valor unitario: ${money(quote.unitValue)}`,
+    `Valor total: ${money(quote.totalValue)}`,
+    `Prazo de entrega: ${formatDate(quote.deadline)}`,
+    `Status: ${quote.status}`,
+    '',
+    'Observacoes',
+    quote.notes || 'Sem observacoes.',
+    ...pdfFooter()
+  ];
+  const blob = createSimplePdf(lines);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `gf-erp-orcamento-${quote.id}.pdf`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showToast('Orcamento PDF exportado.');
+}
+
+function pdfHeader(title) {
+  const company = getCompanySettings();
+  return [
+    `${company.displayName || 'GF ERP'} - ${title}`,
+    company.tradeName || company.legalName || 'GF Impressao 3D',
+    company.document ? `CNPJ: ${company.document}` : '',
+    [company.phone, company.email, company.instagram].filter(Boolean).join(' | '),
+    [company.address, company.cityState].filter(Boolean).join(' - '),
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+    ''
+  ].filter(line => line !== '');
+}
+
+function pdfFooter() {
+  const company = getCompanySettings();
+  return [
+    '',
+    'Rodape',
+    `${company.displayName || 'GF ERP'} - documento gerado automaticamente pelo sistema.`,
+    `Assinatura do responsavel: ${company.responsibleName || 'Responsavel GF'}`
+  ];
 }
 
 function formatRankingLines(items, formatter) {
@@ -2814,6 +3116,12 @@ async function offerLocalMigration() {
 }
 
 function migrateData(loadedData) {
+  loadedData.companySettings = {
+    ...defaultCompanySettings,
+    ...(loadedData.companySettings || {})
+  };
+  loadedData.companySettings.monthlyRevenueGoal = Number(loadedData.companySettings.monthlyRevenueGoal || MONTHLY_REVENUE_GOAL);
+
   if (!Array.isArray(loadedData.production)) {
     loadedData.production = [];
   }
@@ -3132,6 +3440,7 @@ function connectRealtime() {
       const message = JSON.parse(event.data);
       if (message.type !== 'data-updated') return;
       data = migrateData({ ...structuredClone(emptyData), ...message.data });
+      applyCompanyBranding();
       renderAll();
       setSyncStatus('Atualizado em tempo real', 'online');
     } catch {
@@ -3229,7 +3538,7 @@ function wrapPdfLine(line, maxLength) {
 }
 
 function isPdfSectionTitle(line) {
-  return ['Resumo financeiro', 'Produtos mais vendidos', 'Clientes que mais compraram', 'Resumo', 'Comissao por vendedor', 'Comissao por produto', 'Comissao por cliente'].includes(line);
+  return ['Resumo financeiro', 'Produtos mais vendidos', 'Clientes que mais compraram', 'Relatorio de vendas', 'Resumo', 'Comissao por vendedor', 'Comissao por produto', 'Comissao por cliente', 'Rodape', 'Observacoes'].includes(line);
 }
 
 function normalizePdfText(value) {
@@ -3253,6 +3562,7 @@ function importBackup(event) {
   reader.onload = () => {
     try {
       data = migrateData({ ...structuredClone(emptyData), ...JSON.parse(reader.result) });
+      applyCompanyBranding();
       persist();
       renderAll();
       showToast('Backup importado.');

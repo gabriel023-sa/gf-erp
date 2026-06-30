@@ -16,14 +16,14 @@
   <section id="loginScreen" class="login-screen" aria-labelledby="login-title">
     <div class="login-card">
       <div class="brand login-brand">
-        <div class="brand-mark">GF</div>
+        <div class="brand-mark" data-company-logo>GF</div>
         <div>
-          <strong>GF ERP</strong>
-          <span>GF Impressao 3D</span>
+          <strong data-company-display>GF ERP</strong>
+          <span data-company-name>GF Impressao 3D</span>
         </div>
       </div>
       <h1 id="login-title">Entrar no GF ERP</h1>
-      <p>Use seu usuario autorizado para acessar os dados compartilhados da empresa.</p>
+      <p>Gestão inteligente para personalizados, sublimação e impressão 3D</p>
       <form id="loginForm" class="login-form">
         <label>E-mail <input id="loginEmail" name="email" type="email" autocomplete="username" required></label>
         <label>Senha <input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
@@ -35,10 +35,10 @@
 
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark">GF</div>
+      <div class="brand-mark" data-company-logo>GF</div>
       <div>
-        <strong>GF ERP</strong>
-        <span>GF Impressao 3D</span>
+        <strong data-company-display>GF ERP</strong>
+        <span data-company-name>GF Impressao 3D</span>
       </div>
     </div>
     <nav id="menu" class="menu" aria-label="Modulos do sistema"></nav>
@@ -54,11 +54,19 @@
 
   <main class="app-shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">GF Impressao 3D</p>
+      <div class="topbar-title">
+        <p class="eyebrow" data-company-name>GF Impressao 3D</p>
         <h1 id="pageTitle">Dashboard</h1>
+        <span id="topbarClock" class="topbar-clock">Carregando...</span>
+      </div>
+      <div class="global-search">
+        <input id="globalSearch" type="search" placeholder="Buscar no GF ERP">
+        <div id="globalSearchResults" class="global-search-results hidden"></div>
       </div>
       <div class="top-actions">
+        <button id="settingsShortcut" class="secondary-button" type="button">Configurações</button>
+        <span id="notificationBadge" class="notification-badge">0 avisos</span>
+        <span id="currentUserBadge" class="user-badge">Usuário</span>
         <span id="syncStatus" class="sync-status">Conectando...</span>
         <button id="installApp" class="secondary-button hidden" type="button">Instalar app</button>
         <button id="seedData" class="secondary-button" type="button">Restaurar exemplos</button>
@@ -142,6 +150,24 @@
         <section class="panel">
           <div class="panel-head">
             <div>
+              <h2>Resumo do dia</h2>
+              <p class="panel-note">Movimento comercial, financeiro e operacional de hoje.</p>
+            </div>
+          </div>
+          <div id="dailySummary" class="stack-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Ações prioritárias</h2>
+              <p class="panel-note">Próximos passos sugeridos para manter a operação em ordem.</p>
+            </div>
+          </div>
+          <div id="priorityActions" class="stack-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
               <h2>Indicadores CFO</h2>
               <p class="panel-note">Leitura rápida de margem, compromissos e operação.</p>
             </div>
@@ -156,6 +182,15 @@
             </div>
           </div>
           <div id="stockAlerts" class="stack-list smart-alerts"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Sugestão IA CFO</h2>
+              <p class="panel-note">Leitura executiva gerada pelas regras internas do GF ERP.</p>
+            </div>
+          </div>
+          <div id="dashboardAiSuggestion" class="stack-list"></div>
         </section>
       </div>
     </section>
@@ -377,6 +412,44 @@
     </section>
 
     <section id="settings" class="view" aria-labelledby="settings-title">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Minha Empresa</h2>
+            <p class="panel-note">Personalize identidade, tema, meta e dados que aparecem no sistema e nos PDFs.</p>
+          </div>
+        </div>
+        <form id="companySettingsForm" class="company-settings-form">
+          <div class="form-grid">
+            <div class="field"><label>Nome da empresa</label><input name="legalName" type="text" required></div>
+            <div class="field"><label>Nome fantasia</label><input name="tradeName" type="text" required></div>
+            <div class="field"><label>CNPJ</label><input name="document" type="text"></div>
+            <div class="field"><label>Telefone/WhatsApp</label><input name="phone" type="tel"></div>
+            <div class="field"><label>E-mail</label><input name="email" type="email"></div>
+            <div class="field"><label>Instagram</label><input name="instagram" type="text"></div>
+            <div class="field full"><label>Endereço</label><textarea name="address"></textarea></div>
+            <div class="field"><label>Cidade/UF</label><input name="cityState" type="text"></div>
+            <div class="field"><label>Logo da empresa (URL)</label><input name="logoUrl" type="url"></div>
+            <div class="field"><label>Cor principal</label><input name="primaryColor" type="color"></div>
+            <div class="field"><label>Cor secundária</label><input name="secondaryColor" type="color"></div>
+            <div class="field"><label>Meta mensal de faturamento</label><input name="monthlyRevenueGoal" type="number" min="0" step="0.01"></div>
+            <div class="field"><label>Nome do responsável</label><input name="responsibleName" type="text"></div>
+            <div class="field"><label>Nome exibido no sistema</label><input name="displayName" type="text"></div>
+            <div class="field">
+              <label>Tema</label>
+              <select name="theme">
+                <option value="auto">Automático</option>
+                <option value="light">Claro</option>
+                <option value="dark">Escuro</option>
+              </select>
+            </div>
+          </div>
+          <div class="dialog-actions">
+            <button class="primary-button" type="submit">Salvar empresa</button>
+          </div>
+        </form>
+      </div>
+
       <div class="panel">
         <div class="panel-head">
           <div>

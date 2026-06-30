@@ -14,6 +14,17 @@
   --shadow: 0 10px 28px rgba(28, 32, 36, .08);
 }
 
+body[data-theme="dark"] {
+  --bg: #0f141b;
+  --ink: #eef3f7;
+  --muted: #a7b4c2;
+  --line: #26313d;
+  --panel: #151c24;
+  --nav: #0b1118;
+  --nav-soft: #17212c;
+  --shadow: 0 12px 34px rgba(0, 0, 0, .30);
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -1702,5 +1713,201 @@ dialog::backdrop {
   .mobile-card-table td.actions {
     width: auto;
     white-space: normal;
+  }
+}
+
+.brand-mark {
+  overflow: hidden;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.login-screen {
+  background:
+    linear-gradient(135deg, rgba(17, 24, 39, .94), rgba(13, 148, 136, .72)),
+    radial-gradient(circle at top left, rgba(245, 184, 75, .26), transparent 34%),
+    #111827;
+}
+
+.login-card {
+  padding: 32px;
+}
+
+.menu {
+  gap: 12px;
+}
+
+.menu-group {
+  display: grid;
+  gap: 5px;
+}
+
+.menu-group > span {
+  margin: 7px 8px 2px;
+  color: rgba(255, 255, 255, .42);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.menu button.active,
+.menu button:hover {
+  background: linear-gradient(90deg, var(--nav-soft), rgba(13, 148, 136, .20));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.topbar {
+  align-items: center;
+}
+
+.topbar-title {
+  min-width: 220px;
+}
+
+.topbar-clock {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.global-search {
+  position: relative;
+  flex: 1;
+  max-width: 420px;
+}
+
+.global-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.global-search-results {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  left: 0;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 6px;
+}
+
+.global-search-results button,
+.priority-action {
+  width: 100%;
+  padding: 10px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  text-align: left;
+  display: grid;
+  gap: 3px;
+}
+
+.global-search-results button:hover,
+.priority-action:hover {
+  border-color: var(--accent);
+}
+
+.global-search-results span,
+.priority-action span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notification-badge,
+.user-badge {
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  display: inline-grid;
+  place-items: center;
+}
+
+.clickable-card {
+  cursor: pointer;
+}
+
+.goal-track {
+  background: color-mix(in srgb, var(--accent) 14%, #e8eef2);
+}
+
+.goal-bar.status-good,
+.goal-bar.status-warning,
+.goal-bar.status-critical {
+  background: linear-gradient(90deg, var(--accent), var(--gold));
+}
+
+.company-settings-form {
+  display: grid;
+  gap: 18px;
+}
+
+body[data-theme="dark"] .panel,
+body[data-theme="dark"] .executive-card,
+body[data-theme="dark"] .summary-card,
+body[data-theme="dark"] .report-card,
+body[data-theme="dark"] .table-wrap,
+body[data-theme="dark"] .stack-item,
+body[data-theme="dark"] .stock-card,
+body[data-theme="dark"] .equipment-card,
+body[data-theme="dark"] .production-card,
+body[data-theme="dark"] .commission-report-block,
+body[data-theme="dark"] .permission-group {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] input,
+body[data-theme="dark"] select,
+body[data-theme="dark"] textarea {
+  background: #101821;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+body[data-theme="dark"] .executive-card strong,
+body[data-theme="dark"] .summary-card strong,
+body[data-theme="dark"] .report-card strong,
+body[data-theme="dark"] .metric strong,
+body[data-theme="dark"] .executive-goal .panel-head strong {
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .global-search {
+    max-width: none;
+    width: 100%;
+  }
+
+  .top-actions {
+    width: 100%;
+  }
+
+  .notification-badge,
+  .user-badge,
+  .sync-status {
+    width: 100%;
   }
 }

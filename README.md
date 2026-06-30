@@ -10,6 +10,10 @@ Sistema web da GF Impressao 3D com dashboard financeiro, vendas, clientes, produ
 - O acesso exige login e senha.
 - Usuarios agora possuem perfil, status e permissoes por modulo.
 - Senhas sao salvas apenas com hash `bcrypt`, nunca em texto puro.
+- Configuracoes da empresa personalizam nome, logo, cores, tema e meta mensal.
+- Login, cabecalho, dashboard, relatorios e PDFs usam a identidade configurada.
+- Dashboard final possui resumo do dia, acoes prioritarias e sugestao da IA CFO.
+- Menu lateral e agrupado por area: Gestao, Comercial, Financeiro, Producao e Administracao.
 - Varios dispositivos logados compartilham os mesmos dados.
 - Atualizacoes sao enviadas em tempo real por WebSocket.
 - O app pode ser instalado como PWA no Android, Windows e iPhone.
@@ -138,8 +142,43 @@ O GF ERP possui:
 - `service-worker.js`
 - icones em `icons/`
 - botao `Instalar app` quando o navegador permitir
+- aviso de nova versao para atualizar apos deploy
+- nome do app `GF ERP`
+- cores do tema sincronizadas com a identidade visual configurada
 
 Para instalacao real em celular, publique com HTTPS. Em iPhone, use o menu do Safari e escolha `Adicionar a Tela de Inicio`.
+
+## Personalizacao da empresa
+
+Acesse `Configuracoes > Minha Empresa` para editar:
+
+- nome da empresa e nome fantasia
+- CNPJ, telefone, e-mail, Instagram e endereco
+- logo por URL
+- cor principal e secundaria
+- tema Claro, Escuro ou Automatico
+- meta mensal de faturamento
+- nome do responsavel
+- nome exibido no sistema
+
+Esses dados aparecem no login, cabecalho, dashboard, relatorios e PDFs.
+
+## PDFs
+
+Os PDFs gerados pelo sistema incluem:
+
+- nome e dados da empresa
+- data de geracao
+- resumo organizado
+- rodape
+- assinatura do responsavel
+
+Estao personalizados:
+
+- relatorio financeiro mensal
+- relatorio de comissoes
+- orcamentos
+- relatorio de vendas dentro do relatorio mensal
 
 ## Tempo real
 

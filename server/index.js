@@ -683,6 +683,10 @@ function validateDataUpdatePermissions(user, currentData, nextData) {
     return summarizeDataChanges(currentData, nextData, true);
   }
 
+  if (JSON.stringify(currentData.companySettings || {}) !== JSON.stringify(nextData.companySettings || {})) {
+    return { ok: false, error: 'Sem permissao para alterar dados da empresa.' };
+  }
+
   const changes = summarizeCollectionChanges(currentData, nextData);
   const changedSaleIds = new Set(changes.filter(change => change.collection === 'sales').map(change => change.id));
   for (const change of changes) {

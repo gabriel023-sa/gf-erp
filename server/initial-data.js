@@ -6,6 +6,23 @@ function today(offsetDays = 0) {
 
 function createInitialData() {
   return {
+    companySettings: {
+      legalName: 'GF Impressao 3D',
+      tradeName: 'GF Impressao 3D',
+      document: '',
+      phone: '',
+      email: '',
+      instagram: '@gfimpressao3d',
+      address: '',
+      cityState: '',
+      logoUrl: '',
+      primaryColor: '#0d9488',
+      secondaryColor: '#f5b84b',
+      monthlyRevenueGoal: 10000,
+      responsibleName: 'Gabriel',
+      displayName: 'GF ERP',
+      theme: 'auto'
+    },
     sales: [
       { id: 's1', date: today(), clientId: 'c1', productId: 'p1', quantity: 2, value: 50, paymentMethod: 'Pix', status: 'Recebido', sellerId: 'se1', sellerCommissionPercent: 5, sellerCommissionValue: 2.5, sellerCommissionRule: 'Comissao padrao do vendedor', biancaCommission: true, notes: 'Canecas brancas personalizadas' }
     ],
